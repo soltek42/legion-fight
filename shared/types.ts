@@ -71,7 +71,7 @@ export type UnitType =
   | "fire_cannon_ball";
 
 // Game phase types
-export type GamePhaseType = "menu" | "race_selection" | "building" | "combat" | "game_over";
+export type GamePhaseType = "menu" | "waiting" | "race_selection" | "building" | "combat" | "game_over";
 
 // Building category types
 export type BuildingCategoryType = "combat" | "economy" | "special";

@@ -14,6 +14,16 @@ import {
 } from "../game/gameLogic";
 import { v4 as uuidv4 } from "uuid";
 import { buildingsData } from "../game/buildingsData";
+import { 
+  connectSocket, 
+  joinGame, 
+  leaveGame, 
+  selectRace, 
+  placeBuilding as emitPlaceBuilding, 
+  startCombatPhase as emitStartCombatPhase,
+  onGameState,
+  onGamePhaseChange 
+} from "../socket";
 
 // Define the types for our game state
 interface Unit {
@@ -36,7 +46,7 @@ interface Building {
   maxCooldown: number;
 }
 
-type GamePhase = "menu" | "race_selection" | "building" | "combat" | "game_over";
+type GamePhase = "menu" | "waiting" | "race_selection" | "building" | "combat" | "game_over";
 
 interface GameState {
   // Game state
@@ -95,10 +105,144 @@ export const useGameState = create<GameState>()(
     
     // Phase transitions
     startRaceSelection: () => {
-      set({ gamePhase: "race_selection" });
+      // Connect to the socket server when race selection starts
+      connectSocket();
+      
+      // Join game with a default player name (can be enhanced with user input)
+      joinGame("Player")
+        .then(gameId => {
+          console.log("Joined game with ID:", gameId);
+          
+          // Setup socket event listeners
+          const unsubscribeGameState = onGameState((gameState) => {
+            console.log("Received game state from server:", gameState);
+            
+            // Update local state with server state
+            if (gameState.phase === "race_selection" || gameState.phase === "building" || 
+                gameState.phase === "combat" || gameState.phase === "game_over") {
+              
+              // Convert players object/map to array if needed
+              const playersArray = Array.isArray(gameState.players) 
+                ? gameState.players 
+                : Object.values(gameState.players || {});
+              
+              console.log("Players array:", playersArray);
+              
+              // If we don't have players yet, skip this update
+              if (!playersArray || playersArray.length === 0) {
+                console.log("No players found in game state, skipping update");
+                return;
+              }
+              
+              // Find the human player (the current user) and AI player
+              const humanPlayer = playersArray.find(p => p && !p.isAI);
+              const aiPlayer = playersArray.find(p => p && p.isAI);
+              
+              // Make sure we have both players before continuing
+              if (!humanPlayer || !aiPlayer) {
+                console.log("Missing human or AI player, skipping update");
+                return;
+              }
+              
+              if (humanPlayer && aiPlayer) {
+                set({
+                  gamePhase: gameState.phase as GamePhase,
+                  playerRace: humanPlayer.race,
+                  enemyRace: aiPlayer.race,
+                  playerGold: humanPlayer.gold,
+                  playerIncome: humanPlayer.income,
+                  playerCastleHealth: humanPlayer.castleHealth,
+                  enemyCastleHealth: aiPlayer.castleHealth,
+                  timeUntilCombat: gameState.timeUntilCombat,
+                  playerBuildings: humanPlayer.buildings && Array.isArray(humanPlayer.buildings) 
+                    ? humanPlayer.buildings.map(b => ({
+                        id: b.id,
+                        type: b.type,
+                        position: b.position,
+                        health: b.health,
+                        cooldown: b.cooldown,
+                        maxCooldown: b.maxCooldown
+                      }))
+                    : [],
+                  enemyBuildings: aiPlayer.buildings && Array.isArray(aiPlayer.buildings)
+                    ? aiPlayer.buildings.map(b => ({
+                        id: b.id,
+                        type: b.type,
+                        position: b.position,
+                        health: b.health,
+                        cooldown: b.cooldown,
+                        maxCooldown: b.maxCooldown
+                      }))
+                    : [],
+                  playerUnits: humanPlayer.units && Array.isArray(humanPlayer.units)
+                    ? humanPlayer.units.map(u => ({
+                        id: u.id,
+                        type: u.type,
+                        position: u.position,
+                        health: u.health,
+                        maxHealth: u.maxHealth,
+                        damage: u.damage,
+                        attackCooldown: u.attackCooldown,
+                        attacking: u.attacking
+                      }))
+                    : [],
+                  enemyUnits: aiPlayer.units && Array.isArray(aiPlayer.units)
+                    ? aiPlayer.units.map(u => ({
+                        id: u.id,
+                        type: u.type,
+                        position: u.position,
+                        health: u.health,
+                        maxHealth: u.maxHealth,
+                        damage: u.damage,
+                        attackCooldown: u.attackCooldown,
+                        attacking: u.attacking
+                      }))
+                    : [],
+                  playerWon: gameState.winner === humanPlayer.id
+                });
+              }
+            }
+          });
+          
+          const unsubscribePhaseChange = onGamePhaseChange((phase) => {
+            console.log("Game phase changed to:", phase);
+            
+            // When moving to race_selection, make sure we're showing the proper screen
+            if (phase === "race_selection" && get().gamePhase === "waiting") {
+              console.log("Transitioning from waiting to race selection");
+            }
+            
+            // When returning to waiting, reset player selections
+            if (phase === "waiting" && (get().gamePhase === "race_selection" || get().gamePhase === "building")) {
+              console.log("Player left - returning to waiting screen");
+              set({
+                enemyRace: null,
+                enemyReady: false
+              });
+            }
+            
+            // Update the game phase
+            set({ gamePhase: phase as GamePhase });
+          });
+          
+          // Subscribe to player left events
+          const unsubscribePlayerLeft = onPlayerLeft((playerId) => {
+            console.log("Player left:", playerId);
+            // The server handles phase changes, this is just for logging
+          });
+          
+          // Store unsubscribe functions for cleanup
+          // In a real app, you would clean these up when the component unmounts
+        })
+        .catch(err => {
+          console.error("Failed to join game:", err);
+        });
+      
+      set({ gamePhase: "waiting" }); // First go to waiting phase
     },
     
     startGame: (playerRace: Race, enemyRace: Race) => {
+      // Set local state
       set({
         gamePhase: "building",
         playerRace,
@@ -115,7 +259,10 @@ export const useGameState = create<GameState>()(
         enemyBuildings: []
       });
       
-      // Add some basic buildings for the enemy
+      // Send race selection to server
+      selectRace(playerRace);
+      
+      // Add some basic buildings for the enemy (now happens on the server)
       setTimeout(() => {
         const state = get();
         if (state.enemyRace === "human") {
@@ -135,10 +282,17 @@ export const useGameState = create<GameState>()(
     },
     
     startCombatPhase: () => {
+      // Tell the server to start combat phase
+      emitStartCombatPhase();
+      
+      // Local state will be updated when server confirms phase change
       set({ gamePhase: "combat" });
     },
     
     resetGame: () => {
+      // Clean up socket connection
+      leaveGame(localStorage.getItem('gameId') || '');
+      
       set({
         gamePhase: "menu",
         playerRace: null,
@@ -297,7 +451,7 @@ export const useGameState = create<GameState>()(
       // Check if player has enough gold
       if (state.playerGold < buildingData.cost) return;
       
-      // Create new building
+      // Create new building locally (will be updated from server when it confirms)
       const newBuilding: Building = {
         id: uuidv4(),
         type,
@@ -312,6 +466,9 @@ export const useGameState = create<GameState>()(
         playerGold: state.playerGold - buildingData.cost,
         playerBuildings: [...state.playerBuildings, newBuilding]
       });
+      
+      // Send building placement to server
+      emitPlaceBuilding(type, position);
     },
     
     addEnemyBuilding: (type: BuildingType, position: Vector3Tuple) => {

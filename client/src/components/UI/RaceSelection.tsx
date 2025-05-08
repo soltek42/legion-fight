@@ -5,16 +5,19 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Swords, Zap } from "lucide-react";
 import { useGameState } from "@/lib/stores/useGameState";
+import { useSocket } from "@/lib/stores/useSocket";
 import { Race } from "@shared/types";
 import { racesData } from "@/lib/game/racesData";
 
 export default function RaceSelection() {
   const { startGame } = useGameState();
+  const { selectRace } = useSocket();
   const [selectedRace, setSelectedRace] = useState<Race | null>(null);
   const [enemyRace, setEnemyRace] = useState<Race>("undead");
 
   const handleRaceSelect = (race: Race) => {
     setSelectedRace(race);
+    selectRace(race);
   };
 
   const handleEnemyRaceSelect = (race: Race) => {

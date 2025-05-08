@@ -8,8 +8,10 @@ import { GameBoard } from "./components/Game/GameBoard";
 import GameMenu from "./components/UI/GameMenu";
 import RaceSelection from "./components/UI/RaceSelection";
 import GameOverScreen from "./components/UI/GameOverScreen";
+import WaitingScreen from "./components/UI/WaitingScreen";
 import ResourceBar from "./components/Game/ResourceBar";
 import BuildingMenu from "./components/Game/BuildingMenu";
+import { connectSocket, disconnectSocket } from "./lib/socket";
 import "@fontsource/inter";
 
 // Define control keys for the game
@@ -45,6 +47,19 @@ function App() {
     // Show the canvas once everything is loaded
     setShowCanvas(true);
   }, [setBackgroundMusic, setHitSound, setSuccessSound]);
+  
+  // Socket connection management
+  useEffect(() => {
+    // Initialize socket connection
+    console.log("Initializing socket connection...");
+    const socket = connectSocket();
+    
+    // Clean up socket connection on unmount
+    return () => {
+      console.log("Cleaning up socket connection...");
+      disconnectSocket();
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -76,6 +91,7 @@ function App() {
 
             {/* UI Layers */}
             {gamePhase === 'menu' && <GameMenu />}
+            {gamePhase === 'waiting' && <WaitingScreen />}
             {gamePhase === 'race_selection' && <RaceSelection />}
             {(gamePhase === 'building' || gamePhase === 'combat') && <ResourceBar />}
             {(gamePhase === 'building') && <BuildingMenu />}

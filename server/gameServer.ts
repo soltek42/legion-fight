@@ -43,17 +43,58 @@ export class GameServer {
       
       socket.on("joinGame", (playerName, callback) => {
         try {
-          // For now, we'll just create a new game for each player (1v1 vs AI)
-          const gameId = this.createNewGame(socket.id, playerName);
-          this.playerGameMap.set(socket.id, gameId);
+          let gameId: string;
+          let waitingGame: GameState | undefined;
           
-          // Join the socket room for this game
-          socket.join(gameId);
+          // Check if there's a game waiting for players
+          for (const [id, game] of this.games.entries()) {
+            if (game.getPhase() === "waiting" && game.getPlayerCount() === 1) {
+              waitingGame = game;
+              gameId = id;
+              break;
+            }
+          }
+          
+          if (waitingGame) {
+            // Join the existing game
+            gameId = waitingGame.gameId;
+            const player = new Player(socket.id, playerName);
+            waitingGame.addPlayer(player);
+            
+            // Now that we have 2 players, proceed to race selection
+            waitingGame.phase = "race_selection";
+            
+            // Set up socket room for the joining player
+            socket.join(gameId);
+            
+            // Map player to game
+            this.playerGameMap.set(socket.id, gameId);
+            
+            // Broadcast the game state first so both clients have the needed data
+            this.broadcastGameState(gameId);
+            
+            // Then broadcast the phase change to all players in the game
+            this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+            
+            console.log(`Player ${playerName} (${socket.id}) joined existing game ${gameId}`);
+          } else {
+            // Create a new game if no waiting games are available
+            gameId = this.createNewGame(socket.id, playerName);
+            
+            // Join socket room
+            socket.join(gameId);
+            
+            // Map player to game
+            this.playerGameMap.set(socket.id, gameId);
+            
+            console.log(`Player ${playerName} (${socket.id}) created new game ${gameId}`);
+          }
+          
+          // Broadcast updated game state
+          this.broadcastGameState(gameId);
           
           // Notify the player
           callback(true, gameId);
-          
-          console.log(`Player ${playerName} (${socket.id}) joined game ${gameId}`);
         } catch (error) {
           console.error("Error joining game:", error);
           callback(false);
@@ -125,8 +166,8 @@ export class GameServer {
     const game = new GameState(gameId);
     game.addPlayer(player);
     
-    // Add AI opponent (simplified for now)
-    game.addAIPlayer();
+    // Set phase to waiting for a second player
+    game.phase = "waiting";
     
     // Store the game
     this.games.set(gameId, game);
@@ -148,8 +189,20 @@ export class GameServer {
     if (game.getPlayerCount() === 0) {
       this.games.delete(gameId);
     } else {
-      // Otherwise notify remaining players
+      // If in race selection or building phase, return to waiting
+      if (game.phase === "race_selection" || game.phase === "building") {
+        game.phase = "waiting";
+        
+        // Notify remaining players about phase change
+        this.io.to(gameId).emit("gamePhaseChange", "waiting");
+        console.log(`Game ${gameId} returned to waiting state after player left`);
+      }
+      
+      // Notify remaining players about the player leaving
       this.io.to(gameId).emit("playerLeft", playerId);
+      
+      // Broadcast updated game state
+      this.broadcastGameState(gameId);
     }
   }
   
@@ -157,7 +210,8 @@ export class GameServer {
     const game = this.games.get(gameId);
     if (!game) return;
     
-    this.io.to(gameId).emit("gameState", game);
+    // Send the processed game state using getGameState() instead of the game object directly
+    this.io.to(gameId).emit("gameState", game.getGameState());
   }
   
   private startGameLoop(): void {
