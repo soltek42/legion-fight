@@ -9,8 +9,17 @@
 <body>
     <div id="game-container">
         <h1>Legion Fight</h1>
-        <div id="game-canvas"></div>
+        <div class="canvas-container">
+            <canvas id="game-canvas"></canvas>
+        </div>
     </div>
+    <script>
+        // Make game instance globally accessible
+        let game;
+        window.addEventListener('load', () => {
+            game = new Game();
+        });
+    </script>
     <script src="game.js"></script>
 </body>
 </html> 
