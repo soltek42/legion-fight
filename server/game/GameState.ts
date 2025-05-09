@@ -40,9 +40,7 @@ export class GameState {
   }
 
   addAIPlayer() {
-    const aiPlayer = new Player(uuidv4(), "AI Opponent", true);
-    // Default to undead race for AI
-    aiPlayer.setRace("undead");
+    const aiPlayer = new Player(uuidv4(), "🤖 AI Bot", true);
     this.addPlayer(aiPlayer);
   }
 

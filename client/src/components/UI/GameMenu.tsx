@@ -36,8 +36,9 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
   };
 
   const handlePlayVsAI = () => {
-    setIsWaiting(true); // Show waiting screen
-    startRaceSelection(); // Start race selection phase
+    setIsWaiting(true);
+    const socket = connectSocket();
+    socket.emit("createGame", { mode: "ai" });
   };
 
   const handlePlayOnline = () => {

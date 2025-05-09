@@ -369,23 +369,36 @@ private setupSocketHandlers(): void {
 
       socket.on("createGame", ({ mode }) => {
         if (mode === "ai") {
-          // Create a new game with AI opponent
           const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          const player = new Player(socket.id, "Player");
+          
+          // Send game invitation first
+          socket.emit("gameInvitation", { gameId });
 
-          // Create game state and add human + AI players
-          const game = new GameState(gameId);
-          game.addPlayer(player);
-          game.addAIPlayer();
-          game.phase = "race_selection";
-
-          this.games.set(gameId, game);
-
-          console.log(`Player ${player.name} (${socket.id}) created new AI game ${gameId}`);
-
-          socket.join(gameId);
-          socket.emit("gameJoined", gameId);
-          this.broadcastGameState(gameId);
+          socket.once("acceptGame", () => {
+            const player = new Player(socket.id, "Player");
+            const game = new GameState(gameId);
+            
+            // Add human player and AI opponent
+            game.addPlayer(player);
+            game.addAIPlayer(); // This adds bot with name "🤖 AI Bot"
+            game.phase = "race_selection";
+            
+            this.games.set(gameId, game);
+            this.playerGameMap.set(socket.id, gameId);
+            
+            console.log(`Player ${player.name} (${socket.id}) created new AI game ${gameId}`);
+            
+            socket.join(gameId);
+            
+            // Start countdown after acceptance
+            this.io.to(gameId).emit("startCountdown");
+            
+            setTimeout(() => {
+              socket.emit("gameJoined", gameId);
+              this.broadcastGameState(gameId);
+              this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+            }, 3000);
+          });
         } else {
           // Add player to matchmaking queue
           const queuedPlayer = this.matchmakingQueue.find(p => p.id !== socket.id);
