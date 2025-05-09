@@ -117,6 +117,7 @@ export const useGameState = create<GameState>()(
       joinGame("Player")
         .then(gameId => {
           console.log("Joined game with ID:", gameId);
+          console.log("Current socket room:", gameId);
           
           // Setup socket event listeners
           const unsubscribeGameState = onGameState((gameState) => {
