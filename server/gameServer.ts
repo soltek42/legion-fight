@@ -70,13 +70,16 @@ export class GameServer {
             // Map player to game
             this.playerGameMap.set(socket.id, gameId);
             
-            // Broadcast the game state first so both clients have the needed data
-            this.broadcastGameState(gameId);
-            
-            // Then broadcast the phase change to all players in the game
-            this.io.to(gameId).emit("gamePhaseChange", "race_selection");
-            
             console.log(`Player ${playerName} (${socket.id}) joined existing game ${gameId}`);
+
+            // Add 1 second delay so that both clients have time to connect to the game
+            setTimeout(() => {
+              // Broadcast the game state first so both clients have the needed data
+              this.broadcastGameState(gameId);
+
+              // Then broadcast the phase change to all players in the game
+              this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+            }, 1000)
           } else {
             // Create a new game if no waiting games are available
             gameId = this.createNewGame(socket.id, playerName);
