@@ -7,6 +7,8 @@ interface ServerToClientEvents {
   playerJoined: (playerId: string) => void;
   playerLeft: (playerId: string) => void;
   error: (message: string) => void;
+  queueSize: (data: { count: number }) => void;
+  enterQueue: (data: { queueSize: number }) => void;
 }
 
 interface ClientToServerEvents {

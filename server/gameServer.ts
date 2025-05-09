@@ -219,9 +219,14 @@ export class GameServer {
           } else {
             // Add to matchmaking queue
             this.matchmakingQueue.push({ id: socket.id, timestamp: Date.now() });
-            socket.emit("enterQueue");
+            socket.emit("enterQueue", { queueSize: this.matchmakingQueue.length });
           }
         }
+      });
+
+      // Broadcast queue size updates
+      socket.on("requestQueueSize", () => {
+        socket.emit("queueSize", { count: this.matchmakingQueue.length });
       });
     });
   }
