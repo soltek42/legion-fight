@@ -81,12 +81,14 @@ export default function GameMenu() {
               >
                 Play Game
               </Button>
-              <Button onClick={handlePlayVsAI} className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-6">
-                Play vs AI
-              </Button>
-              <Button onClick={handlePlayOnline} disabled={isSearching} className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-6">
-                {isSearching ? "Finding Match..." : "Play Online 1v1"}
-              </Button>
+              <div className="flex gap-3">
+                <Button onClick={handlePlayVsAI} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4">
+                  P vs AI
+                </Button>
+                <Button onClick={handlePlayOnline} disabled={isSearching} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4">
+                  {isSearching ? "Finding..." : "P vs P"}
+                </Button>
+              </div>
               
               <div className="grid grid-cols-2 gap-3">
                 <Button 
