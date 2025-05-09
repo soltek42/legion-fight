@@ -207,15 +207,23 @@ export class GameServer {
             game.phase = "race_selection";
   
             this.games.set(gameId, game);
+            
+            // Map players to game
+            this.playerGameMap.set(queuedPlayer.id, gameId);
+            this.playerGameMap.set(socket.id, gameId);
   
             // Remove matched player from queue
             this.matchmakingQueue = this.matchmakingQueue.filter(p => p.id !== queuedPlayer.id);
   
-            // Join both players to game room
+            // Join both players to game room and notify them
+            this.io.to(queuedPlayer.id).join(gameId);
             socket.join(gameId);
-            this.io.to(queuedPlayer.id).emit("gameJoined", gameId);
-            socket.emit("gameJoined", gameId);
+            
+            this.io.to(gameId).emit("gameJoined", gameId);
             this.broadcastGameState(gameId);
+            
+            // Notify phase change
+            this.io.to(gameId).emit("gamePhaseChange", "race_selection");
           } else {
             // Add to matchmaking queue if not already in it
             if (!this.matchmakingQueue.find(p => p.id === socket.id)) {
