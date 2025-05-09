@@ -217,14 +217,26 @@ export class GameServer {
             socket.emit("gameJoined", gameId);
             this.broadcastGameState(gameId);
           } else {
-            // Add to matchmaking queue
-            this.matchmakingQueue.push({ id: socket.id, timestamp: Date.now() });
-            socket.emit("enterQueue", { queueSize: this.matchmakingQueue.length });
+            // Add to matchmaking queue if not already in it
+            if (!this.matchmakingQueue.find(p => p.id === socket.id)) {
+              this.matchmakingQueue.push({ id: socket.id, timestamp: Date.now() });
+              
+              // Broadcast updated queue size to all connected clients
+              this.io.emit("queueSize", { count: this.matchmakingQueue.length });
+              socket.emit("enterQueue", { queueSize: this.matchmakingQueue.length });
+            }
           }
         }
       });
 
-      // Broadcast queue size updates
+      socket.on("disconnect", () => {
+        // Remove from matchmaking queue if present
+        this.matchmakingQueue = this.matchmakingQueue.filter(p => p.id !== socket.id);
+        // Broadcast updated queue size
+        this.io.emit("queueSize", { count: this.matchmakingQueue.length });
+      });
+
+      // Handle queue size requests
       socket.on("requestQueueSize", () => {
         socket.emit("queueSize", { count: this.matchmakingQueue.length });
       });
