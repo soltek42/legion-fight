@@ -44,7 +44,8 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
   const handlePlayOnline = () => {
     setIsSearching(true);
     setIsWaiting(true);
-    startGame("online");
+    const socket = connectSocket();
+    socket.emit("joinWaitingRoom");
   };
 
   return (

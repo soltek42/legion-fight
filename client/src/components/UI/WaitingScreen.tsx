@@ -13,19 +13,11 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
   useEffect(() => {
     const socket = connectSocket();
     
-    const handleQueueSize = (data: { count: number }) => {
+    const handleWaitingRoomSize = (data: { count: number }) => {
       setQueueSize(data.count);
     };
     
-    const handleEnterQueue = (data: { queueSize: number }) => {
-      setQueueSize(data.queueSize);
-    };
-    
-    socket.on('queueSize', handleQueueSize);
-    socket.on('enterQueue', handleEnterQueue);
-    
-    // Request initial queue size
-    socket.emit('requestQueueSize');
+    socket.on('waitingRoomSize', handleWaitingRoomSize);
     
     return () => {
       socket.off('queueSize', handleQueueSize);

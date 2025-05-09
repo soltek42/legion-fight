@@ -38,9 +38,58 @@ export class GameServer {
     this.startGameLoop();
   }
 
-  private setupSocketHandlers(): void {
+  private static WAITING_ROOM = 'global_waiting_room';
+private waitingPlayers: string[] = [];
+
+private setupSocketHandlers(): void {
     this.io.on("connection", (socket) => {
       console.log(`Player connected: ${socket.id}`);
+      
+      // Handle joining waiting room
+      socket.on("joinWaitingRoom", () => {
+        socket.join(GameServer.WAITING_ROOM);
+        this.waitingPlayers.push(socket.id);
+        
+        // Broadcast updated queue size
+        this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
+        
+        // If we have 2 players, create a game
+        if (this.waitingPlayers.length >= 2) {
+          const player1 = this.waitingPlayers.shift()!;
+          const player2 = this.waitingPlayers.shift()!;
+          
+          // Create new game
+          const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          const game = new GameState(gameId);
+          
+          // Add players
+          game.addPlayer(new Player(player1, "Player"));
+          game.addPlayer(new Player(player2, "Player"));
+          game.phase = "race_selection";
+          
+          this.games.set(gameId, game);
+          
+          // Remove players from waiting room
+          this.io.sockets.sockets.get(player1)?.leave(GameServer.WAITING_ROOM);
+          this.io.sockets.sockets.get(player2)?.leave(GameServer.WAITING_ROOM);
+          
+          // Add players to game room
+          this.io.sockets.sockets.get(player1)?.join(gameId);
+          this.io.sockets.sockets.get(player2)?.join(gameId);
+          
+          // Map players to game
+          this.playerGameMap.set(player1, gameId);
+          this.playerGameMap.set(player2, gameId);
+          
+          // Notify players
+          this.io.to(gameId).emit("gameJoined", gameId);
+          this.broadcastGameState(gameId);
+          this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+          
+          // Update waiting room count
+          this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
+        }
+      });
 
       socket.on("joinGame", (playerName, callback) => {
         try {
