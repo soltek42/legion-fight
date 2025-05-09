@@ -122,14 +122,25 @@ export const useGameState = create<GameState>()(
               
               const players = Array.from(gameState.players);
               
-              // Find first two players - one human and one opponent
+              // Find current player and opponent
               const currentPlayer = players.find(p => p.id === socket.id);
               const otherPlayer = players.find(p => p.id !== socket.id);
               
               if (currentPlayer && otherPlayer) {
                 set({
                   gamePhase: gameState.phase as GamePhase,
-                  playerRace: humanPlayer.race,
+                  playerRace: currentPlayer.race,
+                  enemyRace: otherPlayer.race,
+                  playerGold: currentPlayer.gold,
+                  playerIncome: currentPlayer.income,
+                  playerCastleHealth: currentPlayer.castleHealth,
+                  enemyCastleHealth: otherPlayer.castleHealth,
+                  timeUntilCombat: gameState.timeUntilCombat,
+                  playerBuildings: currentPlayer.buildings || [],
+                  enemyBuildings: otherPlayer.buildings || [],
+                  playerUnits: currentPlayer.units || [],
+                  enemyUnits: otherPlayer.units || [],
+                  playerWon: gameState.winner === currentPlayer.id
                   enemyRace: aiPlayer.race,
                   playerGold: humanPlayer.gold,
                   playerIncome: humanPlayer.income,
