@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useGameState } from "@/lib/stores/useGameState";
 import { useAudio } from "@/lib/stores/useAudio";
 import { useGame } from "@/lib/stores/useGame";
+import { connectSocket } from "../../lib/socket";
 
 interface GameMenuProps {
   setIsWaiting: (waiting: boolean) => void;
@@ -55,7 +56,7 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
         backdropFilter: "blur(4px)"
       }}>
       <div className="absolute inset-0 bg-black bg-opacity-60"></div>
-      
+
       <Card className="relative w-full max-w-lg mx-4 border-2 border-amber-600 bg-gray-900/90 text-white z-10">
         <CardHeader className="text-center pb-2">
           <CardTitle className="text-4xl font-bold text-amber-400">Castle Fight</CardTitle>
@@ -63,12 +64,12 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
             A passive-strategy PvP game of building and combat
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-4">
           <div className="p-4 bg-gray-800/80 rounded-lg text-sm text-gray-200">
             <p>Build structures that spawn units to attack your enemy's castle. Position your buildings strategically, choose the right units, and destroy the enemy castle to win!</p>
           </div>
-          
+
           {showCredits ? (
             <div className="p-4 bg-gray-800/80 rounded-lg text-sm space-y-2">
               <h3 className="text-amber-400 font-bold">Game Credits</h3>
@@ -100,7 +101,7 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
                   {isSearching ? "Finding..." : "P vs P"}
                 </Button>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <Button 
                   variant="outline" 
@@ -120,7 +121,7 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
             </div>
           )}
         </CardContent>
-        
+
         <CardFooter className="text-center text-gray-400 text-xs">
           <p className="w-full">Use your strategy and resource management skills to defeat your opponent!</p>
         </CardFooter>

@@ -48,13 +48,17 @@ private setupSocketHandlers(): void {
       // Handle joining waiting room
       socket.on("joinWaitingRoom", () => {
         socket.join(GameServer.WAITING_ROOM);
-        this.waitingPlayers.push(socket.id);
-        console.log(`Player ${socket.id} joined waiting room: ${GameServer.WAITING_ROOM}`);
+        
+        // Only add if not already in waiting players
+        if (!this.waitingPlayers.includes(socket.id)) {
+          this.waitingPlayers.push(socket.id);
+          console.log(`Player ${socket.id} joined waiting room: ${GameServer.WAITING_ROOM}`);
+        }
         
         // Broadcast updated queue size
         this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
         
-        // If we have 2 players, create a game
+        // If we have 2 or more players, create a game with the first two
         if (this.waitingPlayers.length >= 2) {
           const player1 = this.waitingPlayers.shift()!;
           const player2 = this.waitingPlayers.shift()!;
@@ -288,10 +292,16 @@ private setupSocketHandlers(): void {
       });
 
       socket.on("disconnect", () => {
-        // Remove from matchmaking queue if present
-        this.matchmakingQueue = this.matchmakingQueue.filter(p => p.id !== socket.id);
-        // Broadcast updated queue size
-        this.io.emit("queueSize", { count: this.matchmakingQueue.length });
+        console.log(`Player disconnected: ${socket.id}`);
+        // Remove from waiting players
+        this.waitingPlayers = this.waitingPlayers.filter(id => id !== socket.id);
+        // Broadcast updated waiting room size
+        this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
+        // Clean up any game this player was in
+        const gameId = this.playerGameMap.get(socket.id);
+        if (gameId) {
+          this.handlePlayerLeave(socket.id, gameId);
+        }
       });
 
       // Handle queue size requests
