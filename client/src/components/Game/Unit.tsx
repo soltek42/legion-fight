@@ -54,13 +54,13 @@ export default function Unit({
     
     // Set size based on unit type
     if (unitData.category === "melee") {
-      setUnitSize([0.5, 0.7, 0.3]);
+      setUnitSize([1.0, 1.4, 0.6]);
     } else if (unitData.category === "ranged") {
-      setUnitSize([0.4, 0.6, 0.3]);
+      setUnitSize([0.8, 1.2, 0.6]);
     } else if (unitData.category === "flying") {
-      setUnitSize([0.6, 0.3, 0.6]);
+      setUnitSize([1.2, 0.6, 1.2]);
     } else if (unitData.category === "siege") {
-      setUnitSize([0.7, 0.5, 0.5]);
+      setUnitSize([1.4, 1.0, 1.0]);
     }
   }, [type, race, isPlayer]);
   
@@ -113,7 +113,13 @@ export default function Unit({
         castShadow
       >
         <boxGeometry args={unitSize} />
-        <meshStandardMaterial color={unitColor} />
+        <meshStandardMaterial 
+          color={unitColor}
+          transparent={false}
+          opacity={1}
+          metalness={0.5}
+          roughness={0.5}
+        />
       </mesh>
       
       {/* Health bar */}
