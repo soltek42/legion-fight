@@ -1,3 +1,4 @@
+
 import { create } from "zustand";
 
 interface AudioState {
@@ -28,10 +29,21 @@ export const useAudio = create<AudioState>((set, get) => ({
   setSuccessSound: (sound) => set({ successSound: sound }),
   
   toggleMute: () => {
-    const { isMuted } = get();
+    const { isMuted, backgroundMusic, hitSound, successSound } = get();
     const newMutedState = !isMuted;
     
-    // Just update the muted state
+    // Apply muted state to all audio elements
+    if (backgroundMusic) {
+      backgroundMusic.muted = newMutedState;
+    }
+    if (hitSound) {
+      hitSound.muted = newMutedState;
+    }
+    if (successSound) {
+      successSound.muted = newMutedState;
+    }
+    
+    // Update the state
     set({ isMuted: newMutedState });
     
     // Log the change
