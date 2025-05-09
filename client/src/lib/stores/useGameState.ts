@@ -141,12 +141,6 @@ export const useGameState = create<GameState>()(
                   playerUnits: currentPlayer.units || [],
                   enemyUnits: otherPlayer.units || [],
                   playerWon: gameState.winner === currentPlayer.id
-                  enemyRace: aiPlayer.race,
-                  playerGold: humanPlayer.gold,
-                  playerIncome: humanPlayer.income,
-                  playerCastleHealth: humanPlayer.castleHealth,
-                  enemyCastleHealth: aiPlayer.castleHealth,
-                  timeUntilCombat: gameState.timeUntilCombat,
                   playerBuildings: humanPlayer.buildings && Array.isArray(humanPlayer.buildings) 
                     ? humanPlayer.buildings.map(b => ({
                         id: b.id,
