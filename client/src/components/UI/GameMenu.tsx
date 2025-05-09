@@ -36,10 +36,6 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
   };
 
   const handlePlayVsAI = () => {
-    // If muted, unmute when player starts game
-    if (isMuted) {
-      toggleMute();
-    }
     setIsWaiting(true); // Show waiting screen
     startRaceSelection(); // Start race selection phase
   };
