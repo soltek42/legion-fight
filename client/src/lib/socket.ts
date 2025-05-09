@@ -83,6 +83,11 @@ export const leaveGame = (gameId: string) => {
   socketInstance.emit('leaveGame', gameId);
 };
 
+export const declineGame = (gameId: string) => {
+  const socketInstance = connectSocket();
+  socketInstance.emit('declineGame', gameId);
+};
+
 export const selectRace = (race: Race) => {
   const socketInstance = connectSocket();
   socketInstance.emit('selectRace', race);

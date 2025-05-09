@@ -20,8 +20,11 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
   };
   
   const handleDecline = () => {
-    setInvitationGameId(null);
-    onCancel();
+    if (invitationGameId) {
+      declineGame(invitationGameId);
+      setInvitationGameId(null);
+      onCancel();
+    }
   };
   
   useEffect(() => {

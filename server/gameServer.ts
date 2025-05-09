@@ -252,6 +252,46 @@ private setupSocketHandlers(): void {
         this.broadcastGameState(gameId);
       });
 
+      socket.on("declineGame", (gameId: string) => {
+        console.log(`Player ${socket.id} declined game ${gameId}`);
+
+        // Get both players in the game
+        const game = this.games.get(gameId);
+        if (!game) return;
+
+        const players = Array.from(game.players.values());
+        const decliningPlayer = players.find(p => p.id === socket.id);
+        const otherPlayer = players.find(p => p.id !== socket.id);
+
+        if (decliningPlayer) {
+          // Remove declining player from any rooms
+          socket.leave(gameId);
+          socket.leave(GameServer.WAITING_ROOM);
+          this.playerGameMap.delete(socket.id);
+        }
+
+        if (otherPlayer) {
+          // Get other player's socket
+          const otherSocket = this.io.sockets.sockets.get(otherPlayer.id);
+          if (otherSocket) {
+            // Remove from game room
+            otherSocket.leave(gameId);
+            // Add back to waiting room
+            otherSocket.join(GameServer.WAITING_ROOM);
+            this.waitingPlayers.push(otherPlayer.id);
+            // Notify about return to queue
+            otherSocket.emit("returnToQueue");
+          }
+          this.playerGameMap.delete(otherPlayer.id);
+        }
+
+        // Remove the game
+        this.games.delete(gameId);
+
+        // Broadcast updated queue size
+        this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
+      });
+
       socket.on("disconnect", () => {
         console.log(`Player disconnected: ${socket.id}`);
         const gameId = this.playerGameMap.get(socket.id);
