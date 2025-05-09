@@ -113,10 +113,22 @@ export class GameServer {
         if (!gameId) return;
         
         const game = this.games.get(gameId);
-        if (!game) return;
+        if (!game || game.phase !== "race_selection") return;
         
         // Update player race
         game.setPlayerRace(socket.id, race);
+        
+        // Check if all players have selected races
+        let allPlayersSelected = true;
+        game.players.forEach(player => {
+          if (!player.race) allPlayersSelected = false;
+        });
+
+        if (allPlayersSelected) {
+          // Transition to building phase
+          game.startBuildingPhase();
+          this.io.to(gameId).emit("gamePhaseChange", "building");
+        }
         
         // Broadcast updated game state
         this.broadcastGameState(gameId);
