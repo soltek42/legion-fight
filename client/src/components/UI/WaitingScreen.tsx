@@ -54,7 +54,11 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
       setInvitationGameId(gameId);
     });
 
-    socket.on('gameDeclined', resetState);
+    socket.on('gameDeclined', () => {
+      resetState();
+      const socket = connectSocket();
+      socket.emit("leaveWaitingRoom");
+    });
     socket.on('opponentDeclined', () => {
       setInvitationGameId(null);
       setShowCountdown(false);

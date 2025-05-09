@@ -53,6 +53,11 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
       setIsSearching(false);
       setIsWaiting(false);
     });
+
+    socket.on("gameDeclined", () => {
+      setIsSearching(false);
+      setIsWaiting(false);
+    });
   };
 
   return (
