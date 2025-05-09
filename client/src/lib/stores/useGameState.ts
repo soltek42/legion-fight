@@ -115,19 +115,24 @@ export const useGameState = create<GameState>()(
         .then(gameId => {
           console.log("Joined game with ID:", gameId);
           console.log("Current socket room:", gameId);
-          
+
           // Setup socket event listeners
           onGameState((gameState) => {
             // Update local state with server state
+            const currentPhase = get().gamePhase;
             if (gameState.phase === "race_selection" || gameState.phase === "building" || 
                 gameState.phase === "combat" || gameState.phase === "game_over") {
-              
+              // Log phase changes
+              if (currentPhase !== gameState.phase) {
+                console.log(`Game phase changing from ${currentPhase} to ${gameState.phase}`);
+              }
+
               const players = Array.from(gameState.players);
-              
+
               // Find current player and opponent
               const currentPlayer = players.find(p => p.id === socket.id);
               const otherPlayer = players.find(p => p.id !== socket.id);
-              
+
               if (currentPlayer && otherPlayer) {
                 set({
                   gamePhase: gameState.phase as GamePhase,
@@ -149,15 +154,15 @@ export const useGameState = create<GameState>()(
               }
             }
           });
-          
+
           const unsubscribePhaseChange = onGamePhaseChange((phase) => {
             console.log("Game phase changed to:", phase);
-            
+
             // When moving to race_selection, make sure we're showing the proper screen
             if (phase === "race_selection" && get().gamePhase === "waiting") {
               console.log("Transitioning from waiting to race selection");
             }
-            
+
             // When returning to waiting, reset player selections
             if (phase === "waiting" && (get().gamePhase === "race_selection" || get().gamePhase === "building")) {
               console.log("Player left - returning to waiting screen");
@@ -166,24 +171,24 @@ export const useGameState = create<GameState>()(
                 enemyReady: false
               });
             }
-            
+
             // Update the game phase
             set({ gamePhase: phase as GamePhase });
           });
-          
+
           // Subscribe to player left events
           const unsubscribePlayerLeft = onPlayerLeft((playerId) => {
             console.log("Player left:", playerId);
             // The server handles phase changes, this is just for logging
           });
-          
+
           // Store unsubscribe functions for cleanup
           // In a real app, you would clean these up when the component unmounts
         })
         .catch(err => {
           console.error("Failed to join game:", err);
         });
-      
+
       set({ gamePhase: "waiting" }); // First go to waiting phase
     },
 
