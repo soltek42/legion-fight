@@ -69,7 +69,7 @@ interface GameState {
   playerUnits: Unit[];
   enemyUnits: Unit[];
   playerBuildings: Building[];
-  enemyBuildings: Building[];
+  enemyBuildings: [];
 
   // Game phase actions
   startRaceSelection: () => void;
@@ -132,6 +132,8 @@ export const useGameState = create<GameState>()(
               // Log phase changes
               if (currentPhase !== gameState.phase) {
                 console.log(`Game phase changing from ${currentPhase} to ${gameState.phase}`);
+                // Update game phase immediately to trigger UI updates
+                set({ gamePhase: gameState.phase });
               }
 
               const players = Array.from(gameState.players);
