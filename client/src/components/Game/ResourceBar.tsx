@@ -15,7 +15,8 @@ export default function ResourceBar() {
     enemyCastleHealth,
     playerRace,
     enemyRace,
-    startCombatPhase
+    startCombatPhase,
+    playerUnits
   } = useGameState();
   
   const { toggleMute, isMuted } = useAudio();
