@@ -118,6 +118,9 @@ export const useGameState = create<GameState>()(
 
           // Setup socket event listeners
           onGameState((gameState) => {
+            // Log current game phase
+            console.log("Current game phase:", gameState.phase);
+            
             // Update local state with server state
             const currentPhase = get().gamePhase;
             if (gameState.phase === "race_selection" || gameState.phase === "building" || 
