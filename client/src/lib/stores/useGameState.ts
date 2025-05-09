@@ -116,36 +116,17 @@ export const useGameState = create<GameState>()(
           
           // Setup socket event listeners
           const unsubscribeGameState = onGameState((gameState) => {
-            console.log("Received game state from server:", gameState);
-            
             // Update local state with server state
             if (gameState.phase === "race_selection" || gameState.phase === "building" || 
                 gameState.phase === "combat" || gameState.phase === "game_over") {
               
-              // Convert players object/map to array if needed
-              const playersArray = Array.isArray(gameState.players) 
-                ? gameState.players 
-                : Object.values(gameState.players || {});
+              const players = Array.from(gameState.players);
               
-              console.log("Players array:", playersArray);
+              // Find first two players - one human and one opponent
+              const currentPlayer = players.find(p => p.id === socket.id);
+              const otherPlayer = players.find(p => p.id !== socket.id);
               
-              // If we don't have players yet, skip this update
-              if (!playersArray || playersArray.length === 0) {
-                console.log("No players found in game state, skipping update");
-                return;
-              }
-              
-              // Find the human player (the current user) and AI player
-              const humanPlayer = playersArray.find(p => p && !p.isAI);
-              const aiPlayer = playersArray.find(p => p && p.isAI);
-              
-              // Make sure we have both players before continuing
-              if (!humanPlayer || !aiPlayer) {
-                console.log("Missing human or AI player, skipping update");
-                return;
-              }
-              
-              if (humanPlayer && aiPlayer) {
+              if (currentPlayer && otherPlayer) {
                 set({
                   gamePhase: gameState.phase as GamePhase,
                   playerRace: humanPlayer.race,
