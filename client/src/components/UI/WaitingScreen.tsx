@@ -20,6 +20,7 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
     socket.on('waitingRoomSize', handleWaitingRoomSize);
     socket.on('matchFound', ({ gameId }) => {
       console.log('Match found! Joining game:', gameId);
+      onCancel(); // Clear waiting screen when match is found
     });
     
     return () => {

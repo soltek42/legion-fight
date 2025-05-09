@@ -282,15 +282,28 @@ private setupSocketHandlers(): void {
             // Remove matched player from queue
             this.matchmakingQueue = this.matchmakingQueue.filter(p => p.id !== queuedPlayer.id);
   
-            // Join both players to game room and notify them
-            this.io.to(queuedPlayer.id).join(gameId);
-            socket.join(gameId);
+            // Get socket instances
+            const socket1 = this.io.sockets.sockets.get(queuedPlayer.id);
+            const socket2 = this.io.sockets.sockets.get(socket.id);
             
-            this.io.to(gameId).emit("gameJoined", gameId);
-            this.broadcastGameState(gameId);
-            
-            // Notify phase change
-            this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+            if (socket1 && socket2) {
+              // Remove from waiting room if present
+              socket1.leave(GameServer.WAITING_ROOM);
+              socket2.leave(GameServer.WAITING_ROOM);
+              
+              // Join game room
+              socket1.join(gameId);
+              socket2.join(gameId);
+              
+              // Notify players individually first
+              socket1.emit("matchFound", { gameId });
+              socket2.emit("matchFound", { gameId });
+              
+              // Then setup game state
+              this.io.to(gameId).emit("gameJoined", gameId);
+              this.broadcastGameState(gameId);
+              this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+            }
           } else {
             // Add to matchmaking queue if not already in it
             if (!this.matchmakingQueue.find(p => p.id === socket.id)) {
