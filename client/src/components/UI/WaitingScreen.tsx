@@ -18,10 +18,13 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
     };
     
     socket.on('waitingRoomSize', handleWaitingRoomSize);
+    socket.on('matchFound', ({ gameId }) => {
+      console.log('Match found! Joining game:', gameId);
+    });
     
     return () => {
-      socket.off('queueSize', handleQueueSize);
-      socket.off('enterQueue', handleEnterQueue);
+      socket.off('waitingRoomSize', handleWaitingRoomSize);
+      socket.off('matchFound');
     };
   }, []);
 
