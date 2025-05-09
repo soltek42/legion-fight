@@ -109,7 +109,11 @@ export const useGameState = create<GameState>()(
       // Connect to the socket server when race selection starts
       connectSocket();
 
-      // Join game with a default player name (can be enhanced with user input)
+      // Create a game with AI opponent
+      const socket = connectSocket();
+      socket.emit("createGame", { mode: "ai" });
+
+      // Join game with a default player name
       joinGame("Player")
         .then(gameId => {
           console.log("Joined game with ID:", gameId);

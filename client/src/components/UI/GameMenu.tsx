@@ -33,7 +33,12 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
   };
 
   const handlePlayVsAI = () => {
-    startGame("ai");
+    // If muted, unmute when player starts game
+    if (isMuted) {
+      toggleMute();
+    }
+    setIsWaiting(true); // Show waiting screen
+    startRaceSelection(); // Start race selection phase
   };
 
   const handlePlayOnline = () => {
