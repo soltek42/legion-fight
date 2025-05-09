@@ -117,8 +117,10 @@ export default function Unit({
           color={unitColor}
           transparent={false}
           opacity={1}
-          metalness={0.5}
-          roughness={0.5}
+          metalness={0.8}
+          roughness={0.2}
+          emissive={unitColor}
+          emissiveIntensity={0.2}
         />
       </mesh>
       

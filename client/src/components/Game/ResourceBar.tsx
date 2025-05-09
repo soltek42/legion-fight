@@ -59,10 +59,17 @@ export default function ResourceBar() {
           </div>
           
           {/* Gold display */}
-          <div className="flex items-center">
-            <Coins className="w-5 h-5 text-yellow-400 mr-1" />
-            <span className="text-white font-medium">{playerGold}</span>
-            <span className="text-gray-300 text-sm ml-1">(+{playerIncome}/s)</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center">
+              <Coins className="w-5 h-5 text-yellow-400 mr-1" />
+              <span className="text-white font-medium">{playerGold}</span>
+              <span className="text-gray-300 text-sm ml-1">(+{playerIncome}/s)</span>
+            </div>
+            <div className="flex items-center">
+              <Shield className="w-5 h-5 text-blue-400 mr-1" />
+              <span className="text-white font-medium">{playerUnits.length}</span>
+              <span className="text-gray-300 text-sm ml-1">units</span>
+            </div>
           </div>
         </div>
         
