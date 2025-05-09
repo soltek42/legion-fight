@@ -68,7 +68,12 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
 
     socket.on('opponentDisconnected', resetState);
 
+    socket.on('gameAccepted', () => {
+      console.log('Game accepted by both players');
+    });
+
     socket.on('startCountdown', () => {
+      console.log('Starting countdown');
       setShowCountdown(true);
       let count = 3;
       setCountdown(count);

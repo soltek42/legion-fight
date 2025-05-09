@@ -121,8 +121,39 @@ private setupSocketHandlers(): void {
             };
 
             // Setup acceptance listeners
-            socket1.once("acceptGame", () => handleAcceptance(socket1.id));
-            socket2.once("acceptGame", () => handleAcceptance(socket2.id));
+            socket1.once("acceptGame", () => {
+              console.log(`Player ${socket1.id} accepted game ${gameId}`);
+              handleAcceptance(socket1.id);
+            });
+            socket2.once("acceptGame", () => {
+              console.log(`Player ${socket2.id} accepted game ${gameId}`);
+              handleAcceptance(socket2.id);
+            });
+
+            // Handle full acceptance
+            if (acceptances.size === 2) {
+              console.log(`Both players accepted game ${gameId}`);
+              socket1.leave(GameServer.WAITING_ROOM);
+              socket2.leave(GameServer.WAITING_ROOM);
+              console.log(`Players disconnected from waiting room`);
+              
+              socket1.join(gameId);
+              socket2.join(gameId);
+              console.log(`Players connected to game room ${gameId}`);
+              
+              this.io.to(gameId).emit("gameAccepted");
+              console.log(`Starting countdown for game ${gameId}`);
+              
+              // Start countdown after both accept
+              this.io.to(gameId).emit("startCountdown");
+              
+              // After countdown, transition to race selection
+              setTimeout(() => {
+                console.log(`Game ${gameId} transitioning to race selection`);
+                this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+                this.broadcastGameState(gameId);
+              }, 3000);
+            }
 
             // Update waiting room count
             this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
