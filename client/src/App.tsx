@@ -25,9 +25,10 @@ const queryClient = new QueryClient();
 
 // Main App component
 function App() {
-  const { gamePhase, playerRace, enemyRace } = useGameState();
+  const { gamePhase, playerRace, enemyRace, resetGame } = useGameState();
   const [showCanvas, setShowCanvas] = useState(false);
   const { setBackgroundMusic, setHitSound, setSuccessSound } = useAudio();
+  const [isWaiting, setIsWaiting] = useState(false);
 
   // Load audio assets
   useEffect(() => {
@@ -47,13 +48,13 @@ function App() {
     // Show the canvas once everything is loaded
     setShowCanvas(true);
   }, [setBackgroundMusic, setHitSound, setSuccessSound]);
-  
+
   // Socket connection management
   useEffect(() => {
     // Initialize socket connection
     console.log("Initializing socket connection...");
     const socket = connectSocket();
-    
+
     // Clean up socket connection on unmount
     return () => {
       console.log("Cleaning up socket connection...");
@@ -81,7 +82,7 @@ function App() {
                 }}
               >
                 <color attach="background" args={["#87CEEB"]} />
-                
+
                 {/* Game board is only rendered when game is active */}
                 {(gamePhase === 'building' || gamePhase === 'combat') && playerRace && enemyRace && (
                   <GameBoard />
@@ -90,8 +91,11 @@ function App() {
             </div>
 
             {/* UI Layers */}
-            {gamePhase === 'menu' && <GameMenu />}
-            {gamePhase === 'waiting' && <WaitingScreen />}
+            {gamePhase === "menu" && <GameMenu setIsWaiting={setIsWaiting} />}
+            {isWaiting && <WaitingScreen onCancel={() => {
+              setIsWaiting(false);
+              resetGame();
+            }} />}
             {gamePhase === 'race_selection' && <RaceSelection />}
             {(gamePhase === 'building' || gamePhase === 'combat') && <ResourceBar />}
             {(gamePhase === 'building') && <BuildingMenu />}

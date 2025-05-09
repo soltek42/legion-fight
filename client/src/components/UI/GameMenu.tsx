@@ -5,7 +5,11 @@ import { useGameState } from "@/lib/stores/useGameState";
 import { useAudio } from "@/lib/stores/useAudio";
 import { useGame } from "@/lib/stores/useGame";
 
-export default function GameMenu() {
+interface GameMenuProps {
+  setIsWaiting: (waiting: boolean) => void;
+}
+
+export default function GameMenu({ setIsWaiting }: GameMenuProps) {
   const { startRaceSelection } = useGameState();
   const { backgroundMusic, toggleMute, isMuted } = useAudio();
   const { startGame } = useGame();
@@ -34,6 +38,7 @@ export default function GameMenu() {
 
   const handlePlayOnline = () => {
     setIsSearching(true);
+    setIsWaiting(true);
     startGame("online");
   };
 
@@ -74,18 +79,18 @@ export default function GameMenu() {
             </div>
           ) : (
             <div className="grid gap-3">
-              <Button 
-                size="lg" 
-                onClick={handlePlayClick}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-6"
-              >
-                Play Game
-              </Button>
               <div className="flex gap-3">
-                <Button onClick={handlePlayVsAI} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4">
+                <Button 
+                  onClick={handlePlayVsAI} 
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4"
+                >
                   P vs AI
                 </Button>
-                <Button onClick={handlePlayOnline} disabled={isSearching} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4">
+                <Button 
+                  onClick={handlePlayOnline} 
+                  disabled={isSearching} 
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4"
+                >
                   {isSearching ? "Finding..." : "P vs P"}
                 </Button>
               </div>
