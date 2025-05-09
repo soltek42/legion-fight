@@ -37,12 +37,12 @@ export const connectSocket = () => {
       console.log('Connected to server with ID:', socket?.id);
     });
 
-    socket.on('joinRoom', (room) => {
-      console.log('Joined room:', room);
+    socket.on('joinedRoom', (room) => {
+      console.log('Client joined room:', room);
     });
 
-    socket.on('leaveRoom', (room) => {
-      console.log('Left room:', room);
+    socket.on('leftRoom', (room) => {
+      console.log('Client left room:', room);
     });
 
     socket.on('disconnect', () => {

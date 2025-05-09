@@ -55,7 +55,7 @@ private setupSocketHandlers(): void {
         // Only add if not already in waiting players
         if (!this.waitingPlayers.includes(socket.id)) {
           this.waitingPlayers.push(socket.id);
-          console.log(`Player ${socket.id} joined waiting room: ${GameServer.WAITING_ROOM}`);
+          socket.emit('joinedRoom', GameServer.WAITING_ROOM);
         }
 
         // Broadcast updated queue size
@@ -86,12 +86,14 @@ private setupSocketHandlers(): void {
           if (socket1 && socket2) {
             socket1.leave(GameServer.WAITING_ROOM);
             socket2.leave(GameServer.WAITING_ROOM);
+            socket1.emit('leftRoom', GameServer.WAITING_ROOM);
+            socket2.emit('leftRoom', GameServer.WAITING_ROOM);
 
             // Add players to game room
             socket1.join(gameId);
             socket2.join(gameId);
-
-            console.log(`Players joined game room: ${gameId}`);
+            socket1.emit('joinedRoom', gameId);
+            socket2.emit('joinedRoom', gameId);
 
             // Map players to game
             this.playerGameMap.set(player1, gameId);
