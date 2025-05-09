@@ -102,9 +102,10 @@ private setupSocketHandlers(): void {
             this.io.to(gameId).emit("gameJoined", gameId);
             this.broadcastGameState(gameId);
             this.io.to(gameId).emit("gamePhaseChange", "race_selection");
-          
-          // Update waiting room count
-          this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
+            
+            // Update waiting room count
+            this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
+          }
         }
       });
 
