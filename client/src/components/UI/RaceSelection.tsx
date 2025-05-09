@@ -48,38 +48,47 @@ export default function RaceSelection() {
 
         {/* Center - Race Carousel */}
         <div className="flex-1 flex flex-col items-center justify-center">
-          <Carousel className="w-96"
-            onSelect={(index) => handleRaceSelect(races[index])}>
-            <CarouselContent>
-              {races.map((race) => (
-                <CarouselItem key={race}>
-                  <div className={`
-                    p-6 rounded-lg text-center
-                    ${playerRace === race ? 'bg-amber-600/20' : 'bg-gray-800/40'}
-                  `}>
-                    <h3 className="text-2xl font-bold text-white capitalize mb-4">{race}</h3>
+          <div className="flex flex-col items-center">
+            <Carousel className="w-96"
+              onSelect={(index) => handleRaceSelect(races[index])}>
+              <CarouselContent>
+                {races.map((race) => (
+                  <CarouselItem key={race}>
+                    <div className={`
+                      p-6 rounded-lg text-center
+                      ${playerRace === race ? 'bg-amber-600/20' : 'bg-gray-800/40'}
+                    `}>
+                      <h3 className="text-2xl font-bold text-white capitalize mb-4">{race}</h3>
 
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                      <div className="flex flex-col items-center">
-                        <Shield className="h-8 w-8 text-blue-400 mb-2" />
-                        <span className="text-white">{racesData[race].defense}</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <Swords className="h-8 w-8 text-red-400 mb-2" />
-                        <span className="text-white">{racesData[race].offense}</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <Zap className="h-8 w-8 text-yellow-400 mb-2" />
-                        <span className="text-white">{racesData[race].economy}</span>
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="flex flex-col items-center">
+                          <Shield className="h-8 w-8 text-blue-400 mb-2" />
+                          <span className="text-white">{racesData[race].defense}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <Swords className="h-8 w-8 text-red-400 mb-2" />
+                          <span className="text-white">{racesData[race].offense}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <Zap className="h-8 w-8 text-yellow-400 mb-2" />
+                          <span className="text-white">{racesData[race].economy}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            <CarouselPrevious />
-            <CarouselNext />
-          </Carousel>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious />
+              <CarouselNext />
+            </Carousel>
+            <Button 
+              onClick={handleReadyClick}
+              disabled={!playerRace || isReady}
+              className="mt-4 w-48 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-600"
+            >
+              {isReady ? "Waiting..." : "Submit Race"}
+            </Button>
+          </div>
 
           {playerRace && (
             <div className="mt-8 bg-gray-900/90 p-6 rounded-lg max-w-2xl">
