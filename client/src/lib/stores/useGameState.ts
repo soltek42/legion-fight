@@ -140,52 +140,9 @@ export const useGameState = create<GameState>()(
                   enemyBuildings: otherPlayer.buildings || [],
                   playerUnits: currentPlayer.units || [],
                   enemyUnits: otherPlayer.units || [],
-                  playerWon: gameState.winner === currentPlayer.id
-                  playerBuildings: humanPlayer.buildings && Array.isArray(humanPlayer.buildings) 
-                    ? humanPlayer.buildings.map(b => ({
-                        id: b.id,
-                        type: b.type,
-                        position: b.position,
-                        health: b.health,
-                        cooldown: b.cooldown,
-                        maxCooldown: b.maxCooldown
-                      }))
-                    : [],
-                  enemyBuildings: aiPlayer.buildings && Array.isArray(aiPlayer.buildings)
-                    ? aiPlayer.buildings.map(b => ({
-                        id: b.id,
-                        type: b.type,
-                        position: b.position,
-                        health: b.health,
-                        cooldown: b.cooldown,
-                        maxCooldown: b.maxCooldown
-                      }))
-                    : [],
-                  playerUnits: humanPlayer.units && Array.isArray(humanPlayer.units)
-                    ? humanPlayer.units.map(u => ({
-                        id: u.id,
-                        type: u.type,
-                        position: u.position,
-                        health: u.health,
-                        maxHealth: u.maxHealth,
-                        damage: u.damage,
-                        attackCooldown: u.attackCooldown,
-                        attacking: u.attacking
-                      }))
-                    : [],
-                  enemyUnits: aiPlayer.units && Array.isArray(aiPlayer.units)
-                    ? aiPlayer.units.map(u => ({
-                        id: u.id,
-                        type: u.type,
-                        position: u.position,
-                        health: u.health,
-                        maxHealth: u.maxHealth,
-                        damage: u.damage,
-                        attackCooldown: u.attackCooldown,
-                        attacking: u.attacking
-                      }))
-                    : [],
-                  playerWon: gameState.winner === humanPlayer.id
+                  playerWon: gameState.winner === currentPlayer.id,
+                  playerBuildings: currentPlayer.buildings || [],
+                  enemyBuildings: otherPlayer.buildings || [],
                 });
               }
             }
