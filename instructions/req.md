@@ -5,7 +5,6 @@ Legion Fight is a two-player strategy game where players command armies in a bat
 
 ## Game Rules
 1. Game Field
-   - Size: 1000 x 5000 units (tiles)
    - Two bases on opposite sides
    - Connected by a battle corridor
    - Each base has a deployment area for units
