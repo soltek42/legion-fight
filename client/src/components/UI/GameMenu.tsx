@@ -21,9 +21,11 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
   useEffect(() => {
     if (backgroundMusic) {
       backgroundMusic.loop = true;
-      backgroundMusic.play().catch(err => console.log("Audio playback prevented:", err));
+      if (!isMuted) {
+        backgroundMusic.play().catch(err => console.log("Audio playback prevented:", err));
+      }
     }
-  }, [backgroundMusic]);
+  }, [backgroundMusic, isMuted]);
 
   const handlePlayClick = () => {
     // If muted, unmute when player starts game
