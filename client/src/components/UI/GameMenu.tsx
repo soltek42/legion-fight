@@ -47,6 +47,12 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
     setIsWaiting(true);
     const socket = connectSocket();
     socket.emit("joinWaitingRoom");
+
+    // Listen for return to queue event
+    socket.on("returnToQueue", () => {
+      setIsSearching(false);
+      setIsWaiting(false);
+    });
   };
 
   return (

@@ -23,7 +23,15 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
     if (invitationGameId) {
       declineGame(invitationGameId);
       setInvitationGameId(null);
+      setShowCountdown(false);
       onCancel();
+      
+      // Clean up socket state
+      const socket = connectSocket();
+      socket.off('gameState');
+      socket.off('gamePhaseChange');
+      socket.off('playerJoined');
+      socket.off('playerLeft');
     }
   };
   
