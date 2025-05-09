@@ -107,9 +107,6 @@ export const useGameState = create<GameState>()(
     // Phase transitions
     startRaceSelection: () => {
       // Connect to the socket server when race selection starts
-      connectSocket();
-
-      // Create a game with AI opponent
       const socket = connectSocket();
       socket.emit("createGame", { mode: "ai" });
 
@@ -120,7 +117,7 @@ export const useGameState = create<GameState>()(
           console.log("Current socket room:", gameId);
           
           // Setup socket event listeners
-          const unsubscribeGameState = onGameState((gameState) => {
+          onGameState((gameState) => {
             // Update local state with server state
             if (gameState.phase === "race_selection" || gameState.phase === "building" || 
                 gameState.phase === "combat" || gameState.phase === "game_over") {
