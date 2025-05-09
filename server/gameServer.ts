@@ -10,6 +10,8 @@ interface ServerToClientEvents {
   playerJoined: (playerId: string) => void;
   playerLeft: (playerId: string) => void;
   error: (message: string) => void;
+  gameInvitation: (data: { gameId: string }) => void;
+  startCountdown: () => void;
 }
 
 interface ClientToServerEvents {
@@ -18,6 +20,7 @@ interface ClientToServerEvents {
   selectRace: (race: Race) => void;
   placeBuilding: (buildingType: string, position: [number, number, number]) => void;
   startCombatPhase: () => void;
+  acceptGame: () => void;
 }
 
 export class GameServer {
@@ -44,65 +47,83 @@ private waitingPlayers: string[] = [];
 private setupSocketHandlers(): void {
     this.io.on("connection", (socket) => {
       console.log(`Player connected: ${socket.id}`);
-      
+
       // Handle joining waiting room
       socket.on("joinWaitingRoom", () => {
         socket.join(GameServer.WAITING_ROOM);
-        
+
         // Only add if not already in waiting players
         if (!this.waitingPlayers.includes(socket.id)) {
           this.waitingPlayers.push(socket.id);
           console.log(`Player ${socket.id} joined waiting room: ${GameServer.WAITING_ROOM}`);
         }
-        
+
         // Broadcast updated queue size
         this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
-        
+
         // If we have 2 or more players, create a game with the first two
         if (this.waitingPlayers.length >= 2) {
           const player1 = this.waitingPlayers.shift()!;
           const player2 = this.waitingPlayers.shift()!;
-          
+
           console.log(`Creating game for players ${player1} and ${player2}`);
-          
+
           // Create new game
           const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
           const game = new GameState(gameId);
-          
+
           // Add players
           game.addPlayer(new Player(player1, "Player"));
           game.addPlayer(new Player(player2, "Player"));
           game.phase = "race_selection";
-          
+
           this.games.set(gameId, game);
-          
+
           // Remove players from waiting room
           const socket1 = this.io.sockets.sockets.get(player1);
           const socket2 = this.io.sockets.sockets.get(player2);
-          
+
           if (socket1 && socket2) {
             socket1.leave(GameServer.WAITING_ROOM);
             socket2.leave(GameServer.WAITING_ROOM);
-            
+
             // Add players to game room
             socket1.join(gameId);
             socket2.join(gameId);
-            
+
             console.log(`Players joined game room: ${gameId}`);
-            
+
             // Map players to game
             this.playerGameMap.set(player1, gameId);
             this.playerGameMap.set(player2, gameId);
-            
-            // Notify each player individually first
-            socket1.emit("matchFound", { gameId });
-            socket2.emit("matchFound", { gameId });
-            
-            // Then notify the game room
-            this.io.to(gameId).emit("gameJoined", gameId);
-            this.broadcastGameState(gameId);
-            this.io.to(gameId).emit("gamePhaseChange", "race_selection");
-            
+
+            // Send game invitations
+            socket1.emit("gameInvitation", { gameId });
+            socket2.emit("gameInvitation", { gameId });
+
+            // Track acceptances
+            const acceptances = new Set<string>();
+
+            // Handle acceptances
+            const handleAcceptance = (socketId: string) => {
+              acceptances.add(socketId);
+              if (acceptances.size === 2) {
+                // Both accepted, start countdown
+                this.io.to(gameId).emit("startCountdown");
+
+                // After countdown, start game
+                setTimeout(() => {
+                  this.io.to(gameId).emit("gameJoined", gameId);
+                  this.broadcastGameState(gameId);
+                  this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+                }, 3000);
+              }
+            };
+
+            // Setup acceptance listeners
+            socket1.once("acceptGame", () => handleAcceptance(socket1.id));
+            socket2.once("acceptGame", () => handleAcceptance(socket2.id));
+
             // Update waiting room count
             this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
           }
@@ -244,61 +265,84 @@ private setupSocketHandlers(): void {
           // Create a new game with AI opponent
           const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
           const player = new Player(socket.id, "Player");
-  
+
           // Create game state and add human + AI players
           const game = new GameState(gameId);
           game.addPlayer(player);
           game.addAIPlayer();
           game.phase = "race_selection";
-  
+
           this.games.set(gameId, game);
-  
+
           console.log(`Player ${player.name} (${socket.id}) created new AI game ${gameId}`);
-  
+
           socket.join(gameId);
           socket.emit("gameJoined", gameId);
           this.broadcastGameState(gameId);
         } else {
           // Add player to matchmaking queue
           const queuedPlayer = this.matchmakingQueue.find(p => p.id !== socket.id);
-  
+
           if (queuedPlayer) {
             // Match found - create game with queued player
             const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
             const player1 = new Player(queuedPlayer.id, "Player");
             const player2 = new Player(socket.id, "Player");
-  
+
             const game = new GameState(gameId);
             game.addPlayer(player1);
             game.addPlayer(player2);
             game.phase = "race_selection";
-  
+
             this.games.set(gameId, game);
-            
+
             // Map players to game
             this.playerGameMap.set(queuedPlayer.id, gameId);
             this.playerGameMap.set(socket.id, gameId);
-  
+
             // Remove matched player from queue
             this.matchmakingQueue = this.matchmakingQueue.filter(p => p.id !== queuedPlayer.id);
-  
+
             // Get socket instances
             const socket1 = this.io.sockets.sockets.get(queuedPlayer.id);
             const socket2 = this.io.sockets.sockets.get(socket.id);
-            
+
             if (socket1 && socket2) {
               // Remove from waiting room if present
               socket1.leave(GameServer.WAITING_ROOM);
               socket2.leave(GameServer.WAITING_ROOM);
-              
+
               // Join game room
               socket1.join(gameId);
               socket2.join(gameId);
-              
-              // Notify players individually first
-              socket1.emit("matchFound", { gameId });
-              socket2.emit("matchFound", { gameId });
-              
+
+              // Send game invitations
+              socket1.emit("gameInvitation", { gameId });
+              socket2.emit("gameInvitation", { gameId });
+
+              // Track acceptances
+              const acceptances = new Set<string>();
+
+              // Handle acceptances
+              const handleAcceptance = (socketId: string) => {
+                acceptances.add(socketId);
+                if (acceptances.size === 2) {
+                  // Both accepted, start countdown
+                  this.io.to(gameId).emit("startCountdown");
+
+                  // After countdown, start game
+                  setTimeout(() => {
+                    this.io.to(gameId).emit("gameJoined", gameId);
+                    this.broadcastGameState(gameId);
+                    this.io.to(gameId).emit("gamePhaseChange", "race_selection");
+                  }, 3000);
+                }
+              };
+
+              // Setup acceptance listeners
+              socket1.once("acceptGame", () => handleAcceptance(socket1.id));
+              socket2.once("acceptGame", () => handleAcceptance(socket2.id));
+
               // Then setup game state
               this.io.to(gameId).emit("gameJoined", gameId);
               this.broadcastGameState(gameId);
@@ -308,7 +352,7 @@ private setupSocketHandlers(): void {
             // Add to matchmaking queue if not already in it
             if (!this.matchmakingQueue.find(p => p.id === socket.id)) {
               this.matchmakingQueue.push({ id: socket.id, timestamp: Date.now() });
-              
+
               // Broadcast updated queue size to all connected clients
               this.io.emit("queueSize", { count: this.matchmakingQueue.length });
               socket.emit("enterQueue", { queueSize: this.matchmakingQueue.length });
