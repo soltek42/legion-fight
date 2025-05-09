@@ -264,10 +264,11 @@ private setupSocketHandlers(): void {
         const otherPlayer = players.find(p => p.id !== socket.id);
 
         if (decliningPlayer) {
-          // Remove declining player from any rooms
+          // Remove declining player from any rooms and reset state
           socket.leave(gameId);
           socket.leave(GameServer.WAITING_ROOM);
           this.playerGameMap.delete(socket.id);
+          socket.emit("gameDeclined"); // Notify declining player
         }
 
         if (otherPlayer) {
@@ -279,8 +280,8 @@ private setupSocketHandlers(): void {
             // Add back to waiting room
             otherSocket.join(GameServer.WAITING_ROOM);
             this.waitingPlayers.push(otherPlayer.id);
-            // Notify about return to queue
-            otherSocket.emit("returnToQueue");
+            // Notify about opponent declining
+            otherSocket.emit("opponentDeclined");
           }
           this.playerGameMap.delete(otherPlayer.id);
         }
@@ -289,6 +290,39 @@ private setupSocketHandlers(): void {
         this.games.delete(gameId);
 
         // Broadcast updated queue size
+        this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
+      });
+
+      socket.on("disconnect", () => {
+        console.log(`Player disconnected: ${socket.id}`);
+        
+        // Remove from waiting players if present
+        this.waitingPlayers = this.waitingPlayers.filter(id => id !== socket.id);
+
+        // Handle game disconnection
+        const gameId = this.playerGameMap.get(socket.id);
+        if (gameId) {
+          const game = this.games.get(gameId);
+          if (game) {
+            const otherPlayer = Array.from(game.players.values()).find(p => p.id !== socket.id);
+            if (otherPlayer) {
+              const otherSocket = this.io.sockets.sockets.get(otherPlayer.id);
+              if (otherSocket) {
+                otherSocket.emit("opponentDisconnected");
+                otherSocket.leave(gameId);
+                // Return other player to waiting room
+                otherSocket.join(GameServer.WAITING_ROOM);
+                this.waitingPlayers.push(otherPlayer.id);
+              }
+              this.playerGameMap.delete(otherPlayer.id);
+            }
+            // Clean up game
+            this.games.delete(gameId);
+          }
+          this.playerGameMap.delete(socket.id);
+        }
+
+        // Update waiting room count
         this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
       });
 

@@ -41,12 +41,28 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
     const handleWaitingRoomSize = (data: { count: number }) => {
       setQueueSize(data.count);
     };
+
+    const resetState = () => {
+      setInvitationGameId(null);
+      setShowCountdown(false);
+      onCancel();
+    };
     
     socket.on('waitingRoomSize', handleWaitingRoomSize);
     socket.on('gameInvitation', ({ gameId }) => {
       console.log('Game invitation received:', gameId);
       setInvitationGameId(gameId);
     });
+
+    socket.on('gameDeclined', resetState);
+    socket.on('opponentDeclined', () => {
+      setInvitationGameId(null);
+      setShowCountdown(false);
+      // Return to waiting state
+      socket.emit("joinWaitingRoom");
+    });
+
+    socket.on('opponentDisconnected', resetState);
 
     socket.on('startCountdown', () => {
       setShowCountdown(true);

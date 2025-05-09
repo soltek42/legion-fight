@@ -133,3 +133,21 @@ export const onError = (callback: (message: string) => void) => {
   socketInstance.on('error', callback);
   return () => socketInstance.off('error', callback);
 };
+
+export const onGameDeclined = (callback: () => void) => {
+  const socketInstance = connectSocket();
+  socketInstance.on('gameDeclined', callback);
+  return () => socketInstance.off('gameDeclined', callback);
+};
+
+export const onOpponentDeclined = (callback: () => void) => {
+  const socketInstance = connectSocket();
+  socketInstance.on('opponentDeclined', callback);
+  return () => socketInstance.off('opponentDeclined', callback);
+};
+
+export const onOpponentDisconnected = (callback: () => void) => {
+  const socketInstance = connectSocket();
+  socketInstance.on('opponentDisconnected', callback);
+  return () => socketInstance.off('opponentDisconnected', callback);
+};
