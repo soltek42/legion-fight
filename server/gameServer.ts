@@ -49,6 +49,7 @@ private setupSocketHandlers(): void {
       socket.on("joinWaitingRoom", () => {
         socket.join(GameServer.WAITING_ROOM);
         this.waitingPlayers.push(socket.id);
+        console.log(`Player ${socket.id} joined waiting room: ${GameServer.WAITING_ROOM}`);
         
         // Broadcast updated queue size
         this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
