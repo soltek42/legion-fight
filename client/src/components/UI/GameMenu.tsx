@@ -11,7 +11,7 @@ interface GameMenuProps {
 }
 
 export default function GameMenu({ setIsWaiting }: GameMenuProps) {
-  const { startRaceSelection } = useGameState();
+  const { createGame } = useGameState();
   const { backgroundMusic, toggleMute, isMuted } = useAudio();
   const { startGame } = useGame();
   const [showCredits, setShowCredits] = useState(false);
@@ -25,39 +25,15 @@ export default function GameMenu({ setIsWaiting }: GameMenuProps) {
     }
   }, [backgroundMusic]);
 
-  const handlePlayClick = () => {
-    // If muted, unmute when player starts game
-    if (isMuted) {
-      toggleMute();
-    }
-    startRaceSelection();
-  };
-
   const handlePlayVsAI = () => {
-    // If muted, unmute when player starts game
-    if (isMuted) {
-      toggleMute();
-    }
-    setIsWaiting(true); // Show waiting screen
-    startRaceSelection(); // Start race selection phase
+
+    createGame("ai");
   };
 
   const handlePlayOnline = () => {
     setIsSearching(true);
     setIsWaiting(true);
-    const socket = connectSocket();
-    socket.emit("joinWaitingRoom");
-
-    // Listen for return to queue event
-    socket.on("returnToQueue", () => {
-      setIsSearching(false);
-      setIsWaiting(false);
-    });
-
-    socket.on("gameDeclined", () => {
-      setIsSearching(false);
-      setIsWaiting(false);
-    });
+    createGame("pvp");
   };
 
   return (

@@ -25,6 +25,7 @@ import {
   onGameState,
   onGamePhaseChange
 } from "../socket";
+import { BotFactory } from "../services/BotFactory";
 
 // Define the types for our game state
 interface Unit {
@@ -52,6 +53,7 @@ type GamePhase = "menu" | "waiting" | "race_selection" | "building" | "combat" |
 interface GameState {
   // Game state
   gamePhase: GamePhase;
+  gameMode: "ai" | "pvp" | null;
   playerRace: Race | null;
   enemyRace: Race | null;
   playerGold: number;
@@ -71,6 +73,7 @@ interface GameState {
   enemyBuildings: Building[];
 
   // Game phase actions
+  createGame: (mode: "ai" | "pvp") => void;
   startRaceSelection: () => void;
   startGame: (playerRace: Race, enemyRace: Race) => void;
   startCombatPhase: () => void;
@@ -80,12 +83,23 @@ interface GameState {
   updateGameState: (delta: number) => void;
   addPlayerBuilding: (type: BuildingType, position: Vector3Tuple) => void;
   addEnemyBuilding: (type: BuildingType, position: Vector3Tuple) => void;
+  addPlayerUnit: (type: UnitType) => void;
+  addEnemyUnit: (type: UnitType) => void;
+  removePlayerUnit: (unit: Unit) => void;
+  removeEnemyUnit: (unit: Unit) => void;
+  removePlayerBuilding: (building: Building) => void;
+  removeEnemyBuilding: (building: Building) => void;
+  updatePlayerGold: (amount: number) => void;
+  updatePlayerIncome: (amount: number) => void;
+  updatePlayerCastleHealth: (amount: number) => void;
+  updateEnemyCastleHealth: (amount: number) => void;
 }
 
 export const useGameState = create<GameState>()(
   subscribeWithSelector((set, get) => ({
     // Initial game state
     gamePhase: "menu",
+    gameMode: null,
     playerRace: null,
     enemyRace: null,
     playerGold: GAME_CONFIG.STARTING_GOLD,
@@ -105,89 +119,108 @@ export const useGameState = create<GameState>()(
     enemyBuildings: [],
 
     // Phase transitions
-    startRaceSelection: () => {
-      // Connect to the socket server when race selection starts
-      connectSocket();
-
-      // Create a game with AI opponent
+    createGame: (mode: "ai" | "pvp") => {
       const socket = connectSocket();
-      socket.emit("createGame", { mode: "ai" });
+      
+      if (mode === "ai") {
+        console.log("[GAME] Creating AI game");
+        set({ gamePhase: "waiting", gameMode: mode });
+        
+        // Create bot instance
+        const botFactory = BotFactory.getInstance();
+        
+        // Create and wait for bot to connect
+        botFactory.createBot()
+          .then(bot => {
+            console.log("[GAME] Bot instance created and connected");
+            
+            // Set up bot event listeners
+            bot.on("connected", () => {
+              console.log("[GAME] Bot socket connected, creating game");
+              socket.emit("createGame", { mode: "ai" });
+            });
 
-      // Join game with a default player name
-      joinGame("Player")
-        .then(gameId => {
-          console.log("Joined game with ID:", gameId);
-          console.log("Current socket room:", gameId);
-          
-          // Setup socket event listeners
-          const unsubscribeGameState = onGameState((gameState) => {
-            // Update local state with server state
-            if (gameState.phase === "race_selection" || gameState.phase === "building" || 
-                gameState.phase === "combat" || gameState.phase === "game_over") {
-              
-              const players = Array.from(gameState.players);
-              
-              // Find current player and opponent
-              const currentPlayer = players.find(p => p.id === socket.id);
-              const otherPlayer = players.find(p => p.id !== socket.id);
-              
-              if (currentPlayer && otherPlayer) {
-                set({
-                  gamePhase: gameState.phase as GamePhase,
-                  playerRace: currentPlayer.race,
-                  enemyRace: otherPlayer.race,
-                  playerGold: currentPlayer.gold,
-                  playerIncome: currentPlayer.income,
-                  playerCastleHealth: currentPlayer.castleHealth,
-                  enemyCastleHealth: otherPlayer.castleHealth,
-                  timeUntilCombat: gameState.timeUntilCombat,
-                  playerBuildings: currentPlayer.buildings || [],
-                  enemyBuildings: otherPlayer.buildings || [],
-                  playerUnits: currentPlayer.units || [],
-                  enemyUnits: otherPlayer.units || [],
-                  playerWon: gameState.winner === currentPlayer.id,
-                  playerBuildings: currentPlayer.buildings || [],
-                  enemyBuildings: otherPlayer.buildings || [],
-                });
-              }
-            }
+            bot.on("error", (error) => {
+              console.error("[GAME] Bot connection error:", error);
+              set({ gamePhase: "menu", gameMode: null });
+            });
+
+            // Start the bot
+            console.log("[GAME] Starting bot");
+            bot.start();
+          })
+          .catch(error => {
+            console.error("[GAME] Failed to create bot:", error);
+            set({ gamePhase: "menu", gameMode: null });
           });
+      } else {
+        // Join PvP waiting room
+        set({ gamePhase: "waiting", gameMode: mode });
+        socket.emit("joinWaitingRoom");
+      }
+
+      // Setup common game event listeners
+      const unsubscribeGameState = onGameState((gameState) => {
+        console.log("[GAME] Received game state:", gameState);
+        if (gameState.phase === "race_selection" || gameState.phase === "building" || 
+            gameState.phase === "combat" || gameState.phase === "game_over") {
           
-          const unsubscribePhaseChange = onGamePhaseChange((phase) => {
-            console.log("Game phase changed to:", phase);
-            
-            // When moving to race_selection, make sure we're showing the proper screen
-            if (phase === "race_selection" && get().gamePhase === "waiting") {
-              console.log("Transitioning from waiting to race selection");
-            }
-            
-            // When returning to waiting, reset player selections
-            if (phase === "waiting" && (get().gamePhase === "race_selection" || get().gamePhase === "building")) {
-              console.log("Player left - returning to waiting screen");
-              set({
-                enemyRace: null,
-                enemyReady: false
+          const players = Array.from(gameState.players);
+          console.log("[GAME] Players array:", players);
+          const currentPlayer = players.find(p => p.id === socket.id);
+          const otherPlayer = players.find(p => p.id !== socket.id);
+          console.log("[GAME] Current player:", currentPlayer);
+          console.log("[GAME] Other player:", otherPlayer);
+          
+          if (currentPlayer && otherPlayer) {
+            const newState: Partial<GameState> = {
+              gamePhase: gameState.phase as GamePhase,
+              playerRace: currentPlayer.race || null,
+              enemyRace: otherPlayer.race || null,
+            };
+
+            // Only set these properties if we're not in race selection phase
+            if (gameState.phase !== "race_selection") {
+              Object.assign(newState, {
+                playerGold: currentPlayer.gold ?? GAME_CONFIG.STARTING_GOLD,
+                playerIncome: currentPlayer.income ?? GAME_CONFIG.BASE_INCOME,
+                playerCastleHealth: currentPlayer.castleHealth ?? GAME_CONFIG.CASTLE_MAX_HEALTH,
+                enemyCastleHealth: otherPlayer.castleHealth ?? GAME_CONFIG.CASTLE_MAX_HEALTH,
+                timeUntilCombat: gameState.timeUntilCombat ?? GAME_CONFIG.BUILDING_PHASE_DURATION,
+                playerBuildings: currentPlayer.buildings || [],
+                enemyBuildings: otherPlayer.buildings || [],
+                playerUnits: currentPlayer.units || [],
+                enemyUnits: otherPlayer.units || [],
+                playerWon: gameState.winner === currentPlayer.id
               });
             }
-            
-            // Update the game phase
-            set({ gamePhase: phase as GamePhase });
-          });
-          
-          // Subscribe to player left events
-          const unsubscribePlayerLeft = onPlayerLeft((playerId) => {
-            console.log("Player left:", playerId);
-            // The server handles phase changes, this is just for logging
-          });
-          
-          // Store unsubscribe functions for cleanup
-          // In a real app, you would clean these up when the component unmounts
-        })
-        .catch(err => {
-          console.error("Failed to join game:", err);
-        });
+
+            set(newState);
+          }
+        }
+      });
+
+      const unsubscribePhaseChange = onGamePhaseChange((phase) => {
+        console.log("Game phase changed to:", phase);
+        set({ gamePhase: phase as GamePhase });
+      });
       
-      set({ gamePhase: "waiting" }); // First go to waiting phase
+      const unsubscribePlayerLeft = onPlayerLeft((playerId) => {
+        console.log("Player left:", playerId);
+      });
+
+      // Return cleanup function
+      return () => {
+        unsubscribeGameState();
+        unsubscribePhaseChange();
+        unsubscribePlayerLeft();
+      };
+    },
+
+    startRaceSelection: () => {
+      // This is now just a helper function to transition to race selection
+      // The server will handle the actual transition
+      set({ gamePhase: "race_selection" });
     },
 
     startGame: (playerRace: Race, enemyRace: Race) => {
@@ -438,6 +471,46 @@ export const useGameState = create<GameState>()(
       set({
         enemyBuildings: [...state.enemyBuildings, newBuilding]
       });
+    },
+
+    addPlayerUnit: (type: UnitType) => {
+      // Implementation needed
+    },
+
+    addEnemyUnit: (type: UnitType) => {
+      // Implementation needed
+    },
+
+    removePlayerUnit: (unit: Unit) => {
+      // Implementation needed
+    },
+
+    removeEnemyUnit: (unit: Unit) => {
+      // Implementation needed
+    },
+
+    removePlayerBuilding: (building: Building) => {
+      // Implementation needed
+    },
+
+    removeEnemyBuilding: (building: Building) => {
+      // Implementation needed
+    },
+
+    updatePlayerGold: (amount: number) => {
+      // Implementation needed
+    },
+
+    updatePlayerIncome: (amount: number) => {
+      // Implementation needed
+    },
+
+    updatePlayerCastleHealth: (amount: number) => {
+      // Implementation needed
+    },
+
+    updateEnemyCastleHealth: (amount: number) => {
+      // Implementation needed
     }
   }))
 );

@@ -24,7 +24,22 @@ export class GameState {
   }
 
   addPlayer(player: Player) {
+    console.log(`[GAME_STATE] Adding player ${player.name} (${player.id}) to game ${this.gameId}`);
     this.players.set(player.id, player);
+    
+    // Log current players in game
+    console.log(`[GAME_STATE] Current players in game ${this.gameId}:`, 
+      Array.from(this.players.values()).map(p => `${p.name} (${p.id})`));
+    
+    // If we have both players and both are ready, move to race selection
+    if (this.players.size === 2 && 
+        Array.from(this.players.values()).every(p => p.isReady || p.isAI)) {
+      console.log(`[GAME_STATE] Both players ready, moving to race selection`);
+      this.phase = "race_selection";
+    }
+
+    // Return the added player for chaining
+    return player;
   }
 
   removePlayer(playerId: string) {
@@ -35,15 +50,27 @@ export class GameState {
     return this.players.size;
   }
 
+  getPlayers(): Player[] {
+    return Array.from(this.players.values());
+  }
+
   getPhase(): GamePhaseType {
     return this.phase;
   }
 
   addAIPlayer() {
+    console.log(`[GAME_STATE] Adding AI player to game ${this.gameId}`);
     const aiPlayer = new Player(uuidv4(), "AI Opponent", true);
+    
     // Default to undead race for AI
     aiPlayer.setRace("undead");
+    aiPlayer.isReady = true;
+    
+    // Add AI player to game
     this.addPlayer(aiPlayer);
+    
+    // Return the AI player for reference
+    return aiPlayer;
   }
 
   setPlayerRace(playerId: string, race: Race) {
@@ -344,11 +371,11 @@ export class GameState {
 
   isInRange(attacker: Unit, target: Unit): boolean {
     const distance = this.calculateDistance(attacker.position, target.position);
-    const attackerData = unitsData[attacker.type as any];
+    const attackerData = unitsData[attacker.type as keyof typeof unitsData];
     
     if (!attackerData) return false;
     
-    let attackRange = 1; // Default
+    let attackRange = 1; // Default melee range
     
     switch (attackerData.category) {
       case "melee":
@@ -370,11 +397,11 @@ export class GameState {
 
   isCastleInRange(unit: Unit, castlePosition: Vector3Tuple): boolean {
     const distance = this.calculateDistance(unit.position, castlePosition);
-    const unitData = unitsData[unit.type as any];
+    const unitData = unitsData[unit.type as keyof typeof unitsData];
     
     if (!unitData) return false;
     
-    let attackRange = 1; // Default
+    let attackRange = 1; // Default melee range
     
     switch (unitData.category) {
       case "melee":
@@ -418,18 +445,27 @@ export class GameState {
   }
 
   getGameState() {
-    const playerStates: any[] = [];
-    
-    this.players.forEach(player => {
-      playerStates.push(player.getSnapshot());
+    const playerStates = Array.from(this.players.values()).map(player => ({
+      id: player.id,
+      name: player.name,
+      race: player.race,
+      isReady: player.isReady || false,
+      isAI: player.isAI
+    }));
+
+    console.log(`[GAME_STATE] Current game state for ${this.gameId}:`, {
+      phase: this.phase,
+      playerCount: playerStates.length,
+      players: playerStates.map(p => `${p.name} (${p.id})`)
     });
-    
+
     return {
       gameId: this.gameId,
       phase: this.phase,
       timeUntilCombat: this.timeUntilCombat,
       players: playerStates,
-      winner: this.winner
+      winner: this.winner,
+      lastUpdateTime: Date.now()
     };
   }
 }

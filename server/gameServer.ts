@@ -2,7 +2,8 @@ import { Server } from "socket.io";
 import * as http from "http";
 import { GameState } from "./game/GameState";
 import { Player } from "./game/Player";
-import { Race, GamePhaseType } from "@shared/types";
+import { Race, GamePhaseType } from "./types";
+import { BotFactory } from "../client/src/lib/services/BotFactory";
 
 interface ServerToClientEvents {
   gameState: (state: GameState) => void;
@@ -12,15 +13,32 @@ interface ServerToClientEvents {
   error: (message: string) => void;
   gameInvitation: (data: { gameId: string }) => void;
   startCountdown: () => void;
+  waitingRoomSize: (data: { count: number }) => void;
+  gameDeclined: () => void;
+  opponentDeclined: () => void;
+  opponentDisconnected: () => void;
+  gameAccepted: () => void;
+  joinedRoom: (room: string) => void;
+  leftRoom: (room: string) => void;
+  gameJoined: (gameId: string) => void;
+  queueSize: (data: { count: number }) => void;
+  enterQueue: (data: { queueSize: number }) => void;
+  opponentRaceSelected: (race: Race) => void;
+  opponentReady: (ready: boolean) => void;
 }
 
 interface ClientToServerEvents {
+  createGame: (options: { mode: "ai" | "pvp" }) => void;
+  joinWaitingRoom: () => void;
   joinGame: (playerName: string, callback: (success: boolean, gameId?: string) => void) => void;
   leaveGame: (gameId: string) => void;
   selectRace: (race: Race) => void;
   placeBuilding: (buildingType: string, position: [number, number, number]) => void;
   startCombatPhase: () => void;
   acceptGame: () => void;
+  declineGame: () => void;
+  requestQueueSize: () => void;
+  playerReady: (ready: boolean) => void;
 }
 
 export class GameServer {
@@ -28,6 +46,9 @@ export class GameServer {
   private games: Map<string, GameState> = new Map();
   private playerGameMap: Map<string, string> = new Map();
   private matchmakingQueue: { id: string; timestamp: number }[] = [];
+  private waitingRoom: Set<string> = new Set();
+  private playerReadyStates: Map<string, boolean> = new Map();
+  private playerRaces: Map<string, Race> = new Map();
 
   constructor(httpServer: http.Server) {
     this.io = new Server(httpServer, {
@@ -42,9 +63,9 @@ export class GameServer {
   }
 
   private static WAITING_ROOM = 'global_waiting_room';
-private waitingPlayers: string[] = [];
+  private waitingPlayers: string[] = [];
 
-private setupSocketHandlers(): void {
+  private setupSocketHandlers(): void {
     this.io.on("connection", (socket) => {
       console.log(`Player connected: ${socket.id}`);
 
@@ -230,30 +251,23 @@ private setupSocketHandlers(): void {
         this.handlePlayerLeave(socket.id, gameId);
       });
 
-      socket.on("selectRace", (race) => {
-        const gameId = this.playerGameMap.get(socket.id);
+      socket.on("selectRace", (race: Race) => {
+        const gameId = this.findGameByPlayerId(socket.id);
         if (!gameId) return;
 
         const game = this.games.get(gameId);
-        if (!game || game.phase !== "race_selection") return;
+        if (!game) return;
 
-        // Update player race
-        game.setPlayerRace(socket.id, race);
-
-        // Check if all players have selected races
-        let allPlayersSelected = true;
-        game.players.forEach(player => {
-          if (!player.race) allPlayersSelected = false;
-        });
-
-        if (allPlayersSelected) {
-          // Transition to building phase
-          game.startBuildingPhase();
-          this.io.to(gameId).emit("gamePhaseChange", "building");
+        this.playerRaces.set(socket.id, race);
+        
+        // Get opponent's socket ID
+        const opponentId = Array.from(game.players.keys()).find(id => id !== socket.id);
+        if (opponentId) {
+          const opponentSocket = this.io.sockets.sockets.get(opponentId);
+          if (opponentSocket) {
+            opponentSocket.emit("opponentRaceSelected", race);
+          }
         }
-
-        // Broadcast updated game state
-        this.broadcastGameState(gameId);
       });
 
       socket.on("placeBuilding", (buildingType, position) => {
@@ -285,8 +299,9 @@ private setupSocketHandlers(): void {
         this.broadcastGameState(gameId);
       });
 
-      socket.on("declineGame", (gameId: string) => {
-        console.log(`Player ${socket.id} declined game ${gameId}`);
+      socket.on("declineGame", () => {
+        const gameId = this.playerGameMap.get(socket.id!);
+        if (!gameId) return;
 
         // Get both players in the game
         const game = this.games.get(gameId);
@@ -300,23 +315,22 @@ private setupSocketHandlers(): void {
           // Remove declining player from any rooms and reset state
           socket.leave(gameId);
           socket.leave(GameServer.WAITING_ROOM);
-          this.playerGameMap.delete(socket.id);
+          this.playerGameMap.delete(socket.id!);
           socket.emit("gameDeclined"); // Notify declining player
-        }
 
-        if (otherPlayer) {
-          // Get other player's socket
-          const otherSocket = this.io.sockets.sockets.get(otherPlayer.id);
-          if (otherSocket) {
-            // Remove from game room
-            otherSocket.leave(gameId);
-            // Add back to waiting room
-            otherSocket.join(GameServer.WAITING_ROOM);
-            this.waitingPlayers.push(otherPlayer.id);
-            // Notify about opponent declining
-            otherSocket.emit("opponentDeclined");
+          // Handle other player if exists
+          if (otherPlayer) {
+            const otherSocket = this.io.sockets.sockets.get(otherPlayer.id);
+            
+            if (otherSocket) {
+              // Remove from game room
+              otherSocket.leave(gameId);
+              // Add back to waiting room
+              otherSocket.join(GameServer.WAITING_ROOM);
+              this.waitingPlayers.push(otherPlayer.id);
+              otherSocket.emit("gameDeclined"); // Notify other player
+            }
           }
-          this.playerGameMap.delete(otherPlayer.id);
         }
 
         // Remove the game
@@ -359,125 +373,74 @@ private setupSocketHandlers(): void {
         this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
       });
 
-      socket.on("disconnect", () => {
-        console.log(`Player disconnected: ${socket.id}`);
-        const gameId = this.playerGameMap.get(socket.id);
-        if (gameId) {
-          this.handlePlayerLeave(socket.id, gameId);
-        }
-      });
-
       socket.on("createGame", ({ mode }) => {
         if (mode === "ai") {
           // Create a new game with AI opponent
           const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          const player = new Player(socket.id, "Player");
-
-          // Create game state and add human + AI players
+          
+          // Create human player
+          const humanPlayer = new Player(socket.id!, "Human Player");
+          
+          // Create game state
           const game = new GameState(gameId);
-          game.addPlayer(player);
-          game.addAIPlayer();
+          
+          // Add human player first and initialize state
+          game.addPlayer(humanPlayer);
+          this.playerGameMap.set(socket.id!, gameId);
+          this.playerReadyStates.set(socket.id!, false);
+          
+          // Add AI player and initialize its state
+          const aiPlayer = game.addAIPlayer();
+          if (aiPlayer) {
+            this.playerGameMap.set(aiPlayer.id, gameId);
+            this.playerReadyStates.set(aiPlayer.id, true);
+          }
+          
+          // Set initial game phase
           game.phase = "race_selection";
-
           this.games.set(gameId, game);
 
-          console.log(`Player ${player.name} (${socket.id}) created new AI game ${gameId}`);
+          console.log(`Created new AI game ${gameId} with Human Player (${socket.id}) and AI (${aiPlayer?.id})`);
 
+          // Join the game room and broadcast state
           socket.join(gameId);
           socket.emit("gameJoined", gameId);
           this.broadcastGameState(gameId);
         } else {
-          // Add player to matchmaking queue
-          const queuedPlayer = this.matchmakingQueue.find(p => p.id !== socket.id);
-
-          if (queuedPlayer) {
-            // Match found - create game with queued player
-            const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-            const player1 = new Player(queuedPlayer.id, "Player");
-            const player2 = new Player(socket.id, "Player");
-
-            const game = new GameState(gameId);
-            game.addPlayer(player1);
-            game.addPlayer(player2);
-            game.phase = "race_selection";
-
-            this.games.set(gameId, game);
-
-            // Map players to game
-            this.playerGameMap.set(queuedPlayer.id, gameId);
-            this.playerGameMap.set(socket.id, gameId);
-
-            // Remove matched player from queue
-            this.matchmakingQueue = this.matchmakingQueue.filter(p => p.id !== queuedPlayer.id);
-
-            // Get socket instances
-            const socket1 = this.io.sockets.sockets.get(queuedPlayer.id);
-            const socket2 = this.io.sockets.sockets.get(socket.id);
-
-            if (socket1 && socket2) {
-              // Remove from waiting room if present
-              socket1.leave(GameServer.WAITING_ROOM);
-              socket2.leave(GameServer.WAITING_ROOM);
-
-              // Join game room
-              socket1.join(gameId);
-              socket2.join(gameId);
-
-              // Send game invitations
-              socket1.emit("gameInvitation", { gameId });
-              socket2.emit("gameInvitation", { gameId });
-
-              // Track acceptances
-              const acceptances = new Set<string>();
-
-              // Handle acceptances
-              const handleAcceptance = (socketId: string) => {
-                acceptances.add(socketId);
-                if (acceptances.size === 2) {
-                  // Both accepted, start countdown
-                  this.io.to(gameId).emit("startCountdown");
-
-                  // After countdown, start game
-                  setTimeout(() => {
-                    this.io.to(gameId).emit("gameJoined", gameId);
-                    this.broadcastGameState(gameId);
-                    this.io.to(gameId).emit("gamePhaseChange", "race_selection");
-                  }, 3000);
-                }
-              };
-
-              // Setup acceptance listeners
-              socket1.once("acceptGame", () => handleAcceptance(socket1.id));
-              socket2.once("acceptGame", () => handleAcceptance(socket2.id));
-
-              // Then setup game state
-              this.io.to(gameId).emit("gameJoined", gameId);
-              this.broadcastGameState(gameId);
-              this.io.to(gameId).emit("gamePhaseChange", "race_selection");
-            }
-          } else {
-            // Add to matchmaking queue if not already in it
-            if (!this.matchmakingQueue.find(p => p.id === socket.id)) {
-              this.matchmakingQueue.push({ id: socket.id, timestamp: Date.now() });
-
-              // Broadcast updated queue size to all connected clients
-              this.io.emit("queueSize", { count: this.matchmakingQueue.length });
-              socket.emit("enterQueue", { queueSize: this.matchmakingQueue.length });
-            }
-          }
+          // Handle PvP game creation
+          this.waitingRoom.add(socket.id!);
+          socket.emit("waitingRoomSize", { count: this.waitingRoom.size });
+          this.matchPlayers();
         }
       });
 
-      socket.on("disconnect", () => {
-        console.log(`Player disconnected: ${socket.id}`);
-        // Remove from waiting players
-        this.waitingPlayers = this.waitingPlayers.filter(id => id !== socket.id);
-        // Broadcast updated waiting room size
-        this.io.to(GameServer.WAITING_ROOM).emit("waitingRoomSize", { count: this.waitingPlayers.length });
-        // Clean up any game this player was in
-        const gameId = this.playerGameMap.get(socket.id);
-        if (gameId) {
-          this.handlePlayerLeave(socket.id, gameId);
+      // Handle ready state
+      socket.on("playerReady", (ready: boolean) => {
+        const gameId = this.findGameByPlayerId(socket.id);
+        if (!gameId) return;
+
+        const game = this.games.get(gameId);
+        if (!game) return;
+
+        this.playerReadyStates.set(socket.id, ready);
+        
+        // Get opponent's socket ID
+        const opponentId = Array.from(game.players.keys()).find(id => id !== socket.id);
+        if (opponentId) {
+          const opponentSocket = this.io.sockets.sockets.get(opponentId);
+          if (opponentSocket) {
+            opponentSocket.emit("opponentReady", ready);
+          }
+        }
+
+        // Check if both players are ready
+        const allPlayersReady = Array.from(game.players.keys()).every(
+          playerId => this.playerReadyStates.get(playerId) === true
+        );
+
+        if (allPlayersReady) {
+          game.phase = "building";
+          this.broadcastGameState(gameId);
         }
       });
 
@@ -540,8 +503,23 @@ private setupSocketHandlers(): void {
     const game = this.games.get(gameId);
     if (!game) return;
 
-    // Send the processed game state using getGameState() instead of the game object directly
-    this.io.to(gameId).emit("gameState", game.getGameState());
+    const players = Array.from(game.players.values()).map(player => ({
+      id: player.id,
+      name: player.name,
+      race: player.race,
+      isReady: this.playerReadyStates.get(player.id) || false
+    }));
+
+    const gameState = {
+      gameId: game.gameId,
+      phase: game.phase,
+      timeUntilCombat: game.timeUntilCombat,
+      players,
+      winner: game.winner,
+      lastUpdateTime: Date.now()
+    };
+
+    this.io.to(gameId).emit("gameState", gameState as any); // Type cast to fix emit type error
   }
 
   private startGameLoop(): void {
@@ -567,5 +545,18 @@ private setupSocketHandlers(): void {
         }
       }
     }, UPDATE_INTERVAL);
+  }
+
+  private matchPlayers(): void {
+    // Implementation of matchPlayers method
+  }
+
+  private findGameByPlayerId(playerId: string): string | null {
+    for (const [gameId, game] of Array.from(this.games.entries())) {
+      if (game.players.has(playerId)) {
+        return gameId;
+      }
+    }
+    return null;
   }
 }

@@ -11,6 +11,7 @@ export class Player {
   units: Unit[];
   castleHealth: number;
   isAI: boolean;
+  isReady: boolean;
 
   constructor(id: string, name: string, isAI: boolean = false) {
     this.id = id;
@@ -22,6 +23,7 @@ export class Player {
     this.units = [];
     this.castleHealth = 1000; // Default castle health
     this.isAI = isAI;
+    this.isReady = isAI; // AI players are always ready
   }
 
   setRace(race: Race) {

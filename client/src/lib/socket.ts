@@ -7,16 +7,34 @@ interface ServerToClientEvents {
   playerJoined: (playerId: string) => void;
   playerLeft: (playerId: string) => void;
   error: (message: string) => void;
+  gameInvitation: (data: { gameId: string }) => void;
+  startCountdown: () => void;
+  waitingRoomSize: (data: { count: number }) => void;
+  gameDeclined: () => void;
+  opponentDeclined: () => void;
+  opponentDisconnected: () => void;
+  gameAccepted: () => void;
+  joinedRoom: (room: string) => void;
+  leftRoom: (room: string) => void;
+  gameJoined: (gameId: string) => void;
   queueSize: (data: { count: number }) => void;
   enterQueue: (data: { queueSize: number }) => void;
+  opponentRaceSelected: (race: Race) => void;
+  opponentReady: (ready: boolean) => void;
 }
 
 interface ClientToServerEvents {
+  createGame: (options: { mode: "ai" | "pvp" }) => void;
+  joinWaitingRoom: () => void;
   joinGame: (playerName: string, callback: (success: boolean, gameId?: string) => void) => void;
   leaveGame: (gameId: string) => void;
   selectRace: (race: Race) => void;
   placeBuilding: (buildingType: string, position: [number, number, number]) => void;
   startCombatPhase: () => void;
+  acceptGame: () => void;
+  declineGame: () => void;
+  requestQueueSize: () => void;
+  playerReady: (ready: boolean) => void;
 }
 
 // Create a singleton socket instance
