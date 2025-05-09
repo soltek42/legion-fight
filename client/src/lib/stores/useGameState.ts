@@ -50,8 +50,9 @@ interface Building {
 type GamePhase = "menu" | "waiting" | "race_selection" | "building" | "combat" | "game_over";
 
 interface GameState {
-  // Game state
   gamePhase: GamePhase;
+  playerName: string | null;
+  opponentName: string | null;
   playerRace: Race | null;
   enemyRace: Race | null;
   playerGold: number;
@@ -86,6 +87,8 @@ export const useGameState = create<GameState>()(
   subscribeWithSelector((set, get) => ({
     // Initial game state
     gamePhase: "menu",
+    playerName: null,
+    opponentName: null,
     playerRace: null,
     enemyRace: null,
     playerGold: GAME_CONFIG.STARTING_GOLD,
@@ -120,7 +123,7 @@ export const useGameState = create<GameState>()(
           onGameState((gameState) => {
             // Log current game phase
             console.log("Current game phase:", gameState.phase);
-            
+
             // Update local state with server state
             const currentPhase = get().gamePhase;
             if (gameState.phase === "race_selection" || gameState.phase === "building" || 
@@ -139,6 +142,8 @@ export const useGameState = create<GameState>()(
               if (currentPlayer && otherPlayer) {
                 set({
                   gamePhase: gameState.phase as GamePhase,
+                  playerName: currentPlayer.name,
+                  opponentName: otherPlayer.name,
                   playerRace: currentPlayer.race,
                   enemyRace: otherPlayer.race,
                   playerGold: currentPlayer.gold,
@@ -249,6 +254,8 @@ export const useGameState = create<GameState>()(
 
       set({
         gamePhase: "menu",
+        playerName: null,
+        opponentName: null,
         playerRace: null,
         enemyRace: null,
         playerGold: GAME_CONFIG.STARTING_GOLD,
