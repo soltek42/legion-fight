@@ -24,7 +24,8 @@ export class GameServer {
   private io: Server<ClientToServerEvents, ServerToClientEvents>;
   private games: Map<string, GameState> = new Map();
   private playerGameMap: Map<string, string> = new Map();
-  
+  private matchmakingQueue: { id: string; timestamp: number }[] = [];
+
   constructor(httpServer: http.Server) {
     this.io = new Server(httpServer, {
       cors: {
@@ -32,20 +33,20 @@ export class GameServer {
         methods: ["GET", "POST"]
       }
     });
-    
+
     this.setupSocketHandlers();
     this.startGameLoop();
   }
-  
+
   private setupSocketHandlers(): void {
     this.io.on("connection", (socket) => {
       console.log(`Player connected: ${socket.id}`);
-      
+
       socket.on("joinGame", (playerName, callback) => {
         try {
           let gameId: string;
           let waitingGame: GameState | undefined;
-          
+
           // Check if there's a game waiting for players
           for (const [id, game] of this.games.entries()) {
             if (game.getPhase() === "waiting" && game.getPlayerCount() === 1) {
@@ -54,22 +55,22 @@ export class GameServer {
               break;
             }
           }
-          
+
           if (waitingGame) {
             // Join the existing game
             gameId = waitingGame.gameId;
             const player = new Player(socket.id, playerName);
             waitingGame.addPlayer(player);
-            
+
             // Now that we have 2 players, proceed to race selection
             waitingGame.phase = "race_selection";
-            
+
             // Set up socket room for the joining player
             socket.join(gameId);
-            
+
             // Map player to game
             this.playerGameMap.set(socket.id, gameId);
-            
+
             console.log(`Player ${playerName} (${socket.id}) joined existing game ${gameId}`);
 
             // Add 1 second delay so that both clients have time to connect to the game
@@ -83,19 +84,19 @@ export class GameServer {
           } else {
             // Create a new game if no waiting games are available
             gameId = this.createNewGame(socket.id, playerName);
-            
+
             // Join socket room
             socket.join(gameId);
-            
+
             // Map player to game
             this.playerGameMap.set(socket.id, gameId);
-            
+
             console.log(`Player ${playerName} (${socket.id}) created new game ${gameId}`);
           }
-          
+
           // Broadcast updated game state
           this.broadcastGameState(gameId);
-          
+
           // Notify the player
           callback(true, gameId);
         } catch (error) {
@@ -103,21 +104,21 @@ export class GameServer {
           callback(false);
         }
       });
-      
+
       socket.on("leaveGame", (gameId) => {
         this.handlePlayerLeave(socket.id, gameId);
       });
-      
+
       socket.on("selectRace", (race) => {
         const gameId = this.playerGameMap.get(socket.id);
         if (!gameId) return;
-        
+
         const game = this.games.get(gameId);
         if (!game || game.phase !== "race_selection") return;
-        
+
         // Update player race
         game.setPlayerRace(socket.id, race);
-        
+
         // Check if all players have selected races
         let allPlayersSelected = true;
         game.players.forEach(player => {
@@ -129,40 +130,40 @@ export class GameServer {
           game.startBuildingPhase();
           this.io.to(gameId).emit("gamePhaseChange", "building");
         }
-        
+
         // Broadcast updated game state
         this.broadcastGameState(gameId);
       });
-      
+
       socket.on("placeBuilding", (buildingType, position) => {
         const gameId = this.playerGameMap.get(socket.id);
         if (!gameId) return;
-        
+
         const game = this.games.get(gameId);
         if (!game) return;
-        
+
         // Place building
         game.placeBuilding(socket.id, buildingType, position);
-        
+
         // Broadcast updated game state
         this.broadcastGameState(gameId);
       });
-      
+
       socket.on("startCombatPhase", () => {
         const gameId = this.playerGameMap.get(socket.id);
         if (!gameId) return;
-        
+
         const game = this.games.get(gameId);
         if (!game) return;
-        
+
         // Transition to combat phase
         game.startCombatPhase();
-        
+
         // Broadcast game phase change and updated state
         this.io.to(gameId).emit("gamePhaseChange", "combat");
         this.broadcastGameState(gameId);
       });
-      
+
       socket.on("disconnect", () => {
         console.log(`Player disconnected: ${socket.id}`);
         const gameId = this.playerGameMap.get(socket.id);
@@ -170,36 +171,88 @@ export class GameServer {
           this.handlePlayerLeave(socket.id, gameId);
         }
       });
+
+      socket.on("createGame", ({ mode }) => {
+        if (mode === "ai") {
+          // Create a new game with AI opponent
+          const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          const player = new Player(socket.id, "Player");
+  
+          // Create game state and add human + AI players
+          const game = new GameState(gameId);
+          game.addPlayer(player);
+          game.addAIPlayer();
+          game.phase = "race_selection";
+  
+          this.games.set(gameId, game);
+  
+          console.log(`Player ${player.name} (${socket.id}) created new AI game ${gameId}`);
+  
+          socket.join(gameId);
+          socket.emit("gameJoined", gameId);
+          this.broadcastGameState(gameId);
+        } else {
+          // Add player to matchmaking queue
+          const queuedPlayer = this.matchmakingQueue.find(p => p.id !== socket.id);
+  
+          if (queuedPlayer) {
+            // Match found - create game with queued player
+            const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const player1 = new Player(queuedPlayer.id, "Player");
+            const player2 = new Player(socket.id, "Player");
+  
+            const game = new GameState(gameId);
+            game.addPlayer(player1);
+            game.addPlayer(player2);
+            game.phase = "race_selection";
+  
+            this.games.set(gameId, game);
+  
+            // Remove matched player from queue
+            this.matchmakingQueue = this.matchmakingQueue.filter(p => p.id !== queuedPlayer.id);
+  
+            // Join both players to game room
+            socket.join(gameId);
+            this.io.to(queuedPlayer.id).emit("gameJoined", gameId);
+            socket.emit("gameJoined", gameId);
+            this.broadcastGameState(gameId);
+          } else {
+            // Add to matchmaking queue
+            this.matchmakingQueue.push({ id: socket.id, timestamp: Date.now() });
+            socket.emit("enterQueue");
+          }
+        }
+      });
     });
   }
-  
+
   private createNewGame(playerId: string, playerName: string): string {
     const gameId = `game_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const player = new Player(playerId, playerName);
-    
+
     // Create a new game state
     const game = new GameState(gameId);
     game.addPlayer(player);
-    
+
     // Set phase to waiting for a second player
     game.phase = "waiting";
-    
+
     // Store the game
     this.games.set(gameId, game);
-    
+
     return gameId;
   }
-  
+
   private handlePlayerLeave(playerId: string, gameId: string): void {
     const game = this.games.get(gameId);
     if (!game) return;
-    
+
     // Remove player from game
     game.removePlayer(playerId);
-    
+
     // Clean up player map
     this.playerGameMap.delete(playerId);
-    
+
     // If game is empty, remove it
     if (game.getPlayerCount() === 0) {
       this.games.delete(gameId);
@@ -207,44 +260,44 @@ export class GameServer {
       // If in race selection or building phase, return to waiting
       if (game.phase === "race_selection" || game.phase === "building") {
         game.phase = "waiting";
-        
+
         // Notify remaining players about phase change
         this.io.to(gameId).emit("gamePhaseChange", "waiting");
         console.log(`Game ${gameId} returned to waiting state after player left`);
       }
-      
+
       // Notify remaining players about the player leaving
       this.io.to(gameId).emit("playerLeft", playerId);
-      
+
       // Broadcast updated game state
       this.broadcastGameState(gameId);
     }
   }
-  
+
   private broadcastGameState(gameId: string): void {
     const game = this.games.get(gameId);
     if (!game) return;
-    
+
     // Send the processed game state using getGameState() instead of the game object directly
     this.io.to(gameId).emit("gameState", game.getGameState());
   }
-  
+
   private startGameLoop(): void {
     // Update games at a fixed interval (e.g., 30 times per second)
     const UPDATE_INTERVAL = 1000 / 30; // ~33ms
-    
+
     setInterval(() => {
       const now = Date.now();
-      
+
       // Update each active game
       for (const [gameId, game] of this.games.entries()) {
         if (game.getPhase() === "combat") {
           // Only update during combat phase
           game.update(UPDATE_INTERVAL / 1000); // Convert to seconds
-          
+
           // Broadcast updated state
           this.broadcastGameState(gameId);
-          
+
           // Check if game is over
           if (game.isGameOver()) {
             this.io.to(gameId).emit("gamePhaseChange", "game_over");

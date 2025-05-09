@@ -3,11 +3,14 @@ import { Button } from "@/components/UI/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/UI/card";
 import { useGameState } from "@/lib/stores/useGameState";
 import { useAudio } from "@/lib/stores/useAudio";
+import { useGame } from "@/lib/stores/useGame";
 
 export default function GameMenu() {
   const { startRaceSelection } = useGameState();
   const { backgroundMusic, toggleMute, isMuted } = useAudio();
+  const { startGame } = useGame();
   const [showCredits, setShowCredits] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Start background music when component mounts
   useEffect(() => {
@@ -23,6 +26,15 @@ export default function GameMenu() {
       toggleMute();
     }
     startRaceSelection();
+  };
+
+  const handlePlayVsAI = () => {
+    startGame("ai");
+  };
+
+  const handlePlayOnline = () => {
+    setIsSearching(true);
+    startGame("online");
   };
 
   return (
@@ -68,6 +80,12 @@ export default function GameMenu() {
                 className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-6"
               >
                 Play Game
+              </Button>
+              <Button onClick={handlePlayVsAI} className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-6">
+                Play vs AI
+              </Button>
+              <Button onClick={handlePlayOnline} disabled={isSearching} className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-6">
+                {isSearching ? "Finding Match..." : "Play Online 1v1"}
               </Button>
               
               <div className="grid grid-cols-2 gap-3">
