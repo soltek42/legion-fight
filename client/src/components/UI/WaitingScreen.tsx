@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from './button';
-import { connectSocket } from '../../lib/socket';
+import { connectSocket, declineGame } from '../../lib/socket';
 
 interface WaitingScreenProps {
   onCancel: () => void;
