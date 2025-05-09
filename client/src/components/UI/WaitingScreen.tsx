@@ -2,12 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './button';
 import { connectSocket, declineGame } from '../../lib/socket';
+import { useGameState } from '../../lib/stores/useGameState';
 
 interface WaitingScreenProps {
   onCancel: () => void;
 }
 
 export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
+  const { startRaceSelection } = useGameState();
   const [queueSize, setQueueSize] = useState(1);
   const [invitationGameId, setInvitationGameId] = useState<string | null>(null);
   const [showCountdown, setShowCountdown] = useState(false);
@@ -83,7 +85,8 @@ export default function WaitingScreen({ onCancel }: WaitingScreenProps) {
         setCountdown(count);
         if (count === 0) {
           clearInterval(timer);
-          onCancel(); // Clear waiting screen after countdown
+          onCancel(); // Clear waiting screen
+          startRaceSelection(); // Start race selection phase
         }
       }, 1000);
       
