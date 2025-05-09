@@ -76,6 +76,7 @@ interface GameState {
   startGame: (playerRace: Race, enemyRace: Race) => void;
   startCombatPhase: () => void;
   resetGame: () => void;
+  setPlayerRace: (race: Race) => void;
 
   // Game mechanics
   updateGameState: (delta: number) => void;
@@ -450,6 +451,10 @@ export const useGameState = create<GameState>()(
       set({
         enemyBuildings: [...state.enemyBuildings, newBuilding]
       });
+    },
+
+    setPlayerRace: (race: Race) => {
+      set({ playerRace: race });
     }
   }))
 );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/UI/card";
 import { Button } from "@/components/UI/button";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/UI/carousel";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/UI/carousel";
 import { Badge } from "@/components/UI/badge";
 import { Shield, Swords, Zap } from "lucide-react";
 import { useGameState } from "@/lib/stores/useGameState";
@@ -10,13 +10,50 @@ import { racesData } from "@/lib/game/racesData";
 import { selectRace } from "@/lib/socket";
 
 export default function RaceSelection() {
-  const { startGame, playerName, opponentName, playerRace, enemyRace } = useGameState();
+  const { startGame, playerName, opponentName, playerRace, enemyRace, setPlayerRace } = useGameState();
   const [isReady, setIsReady] = useState(false);
+  const [api, setApi] = useState<CarouselApi>();
   const races = Object.keys(racesData) as Race[];
 
-  const handleRaceSelect = (race: Race) => {
-    selectRace(race);
-  };
+  // Initialize carousel position and select first race when component mounts
+  useEffect(() => {
+    if (api) {
+      // If no race is selected, select the first one
+      if (!playerRace) {
+        const firstRace = races[0];
+        selectRace(firstRace);
+        setPlayerRace(firstRace);
+      } else {
+        // If a race is already selected, scroll to it
+        const index = races.indexOf(playerRace);
+        if (index !== -1) {
+          api.scrollTo(index);
+        }
+      }
+    }
+  }, [api, playerRace]);
+
+  // Handle carousel selection
+  useEffect(() => {
+    if (!api) return;
+
+    const onSelect = () => {
+      const index = api.selectedScrollSnap();
+      const newRace = races[index];
+      selectRace(newRace);
+      setPlayerRace(newRace);
+      
+      // If player was ready, they need to confirm their new race choice
+      if (isReady) {
+        setIsReady(false);
+      }
+    };
+
+    api.on('select', onSelect);
+    return () => {
+      api.off('select', onSelect);
+    };
+  }, [api, isReady]);
 
   const handleReadyClick = () => {
     if (playerRace) {
@@ -49,8 +86,10 @@ export default function RaceSelection() {
         {/* Center - Race Carousel */}
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="flex flex-col items-center">
-            <Carousel className="w-96"
-              onSelect={(index) => handleRaceSelect(races[index])}>
+            <Carousel 
+              className="w-96"
+              setApi={setApi}
+            >
               <CarouselContent>
                 {races.map((race) => (
                   <CarouselItem key={race}>
@@ -81,13 +120,6 @@ export default function RaceSelection() {
               <CarouselPrevious />
               <CarouselNext />
             </Carousel>
-            <Button 
-              onClick={handleReadyClick}
-              disabled={!playerRace || isReady}
-              className="mt-4 w-48 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-600"
-            >
-              {isReady ? "Waiting..." : "Submit Race"}
-            </Button>
           </div>
 
           {playerRace && (
